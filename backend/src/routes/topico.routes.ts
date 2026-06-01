@@ -6,11 +6,18 @@ import {
   listTopicos,
   updateTopico,
 } from '../controllers/topico.controller.js'
+import { authenticate } from '../middlewares/authenticate.js'
+import { requireAuth, requireAdmin } from '../middlewares/requireRole.js'
 
 export const topicoRouter = Router()
 
-topicoRouter.get('/', listTopicos)
+// Leitura — pública
+topicoRouter.get('/',    listTopicos)
 topicoRouter.get('/:id', getTopicoById)
-topicoRouter.post('/', createTopico)
-topicoRouter.put('/:id', updateTopico)
-topicoRouter.delete('/:id', deleteTopico)
+
+// Criar tópico — utilizador autenticado
+topicoRouter.post('/',    authenticate, requireAuth, createTopico)
+
+// Editar/Apagar — apenas admin
+topicoRouter.put   ('/:id', authenticate, requireAdmin, updateTopico)
+topicoRouter.delete('/:id', authenticate, requireAdmin, deleteTopico)

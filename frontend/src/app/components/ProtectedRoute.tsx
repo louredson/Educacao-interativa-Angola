@@ -1,16 +1,22 @@
-import { Navigate } from 'react-router';
-import { useAuth } from '../contexts/AuthContext';
+import { Navigate } from 'react-router'
+import { useAuth } from '../contexts/AuthContext'
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
+  children:      React.ReactNode
+  /** Se true, redireciona utilizadores não-admin para a página inicial */
+  requireAdmin?: boolean
 }
 
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated } = useAuth();
+export default function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
+  const { isAuthenticated, isAdmin } = useAuth()
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace />
   }
 
-  return <>{children}</>;
+  if (requireAdmin && !isAdmin) {
+    return <Navigate to="/" replace />
+  }
+
+  return <>{children}</>
 }

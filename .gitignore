@@ -1,58 +1,37 @@
-# Dependencias
+# ── Dependências ──────────────────────────────────────────────────────────────
 node_modules/
-frontend/node_modules/
 backend/node_modules/
+frontend/node_modules/
 mobile/node_modules/
 
-# Builds / outputs
-dist/
-build/
-frontend/dist/
-backend/dist/
-mobile/dist/
-coverage/
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-*.log
-
-# Env files
+# ── Ambiente (NUNCA fazer commit destes ficheiros) ────────────────────────────
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 backend/.env
-backend/.env.*
-!backend/.env.example
-mobile/.env
-mobile/.env.*
+backend/.env.desenvolvimento
+backend/.env.final
+frontend/.env
+frontend/.env.local
 
-# Vite / frontend cache
-frontend/.vite/
-frontend/.cache/
+# ── Build ─────────────────────────────────────────────────────────────────────
+dist/
+backend/dist/
+frontend/dist/
+frontend/.angular/
+mobile/www/
 
-# Expo / React Native
-mobile/.expo/
-mobile/.expo-shared/
-mobile/.metro/
+# ── Logs de email (gerados em dev) ───────────────────────────────────────────
+backend/logs/
 
-# OS / editor files
+# ── Sistema operativo ─────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
-Desktop.ini
+
+# ── Editor ────────────────────────────────────────────────────────────────────
 .vscode/
-!.vscode/extensions.json
-!.vscode/settings.json
-
-# Git / tooling
 .idea/
-.history/
-.parcel-cache/
-.turbo/
-
-# Temporary files
-*.tmp
-*.temp
-*.swp
+*.suo
+*.ntvs*
+*.njsproj
+*.sln

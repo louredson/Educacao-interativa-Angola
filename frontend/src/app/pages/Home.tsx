@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { useState, type MouseEvent } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ArrowRight, BookOpen, GraduationCap, MapPin, MessageSquare,
   TrendingUp, Compass, HelpCircle, Sparkles, Award, Zap, ChevronDown, ChevronUp
@@ -20,29 +20,55 @@ export default function Home() {
     )
   }
 
-  const updateTooltipFromEvent = (targetEl: Element | null, x: number, y: number) => {
-    const target = targetEl?.closest('.tooltipsMaps') as SVGElement | null
-    if (!target) {
+  useEffect(() => {
+    const updateTooltip = (e: MouseEvent) => {
+      const target = e.target as SVGElement | null
+      if (target?.classList?.contains('tooltipsMaps')) {
+        const desc = target.getAttribute('data-descricao')
+        if (desc) {
+          setTooltip({
+            visible: true,
+            content: desc,
+            x: e.clientX + 15,
+            y: e.clientY - 10,
+          })
+          return
+        }
+      }
+
       setTooltip((prev) => ({ ...prev, visible: false }))
-      return
     }
 
-    const desc = target.getAttribute('data-descricao')
-    if (desc) {
-      setTooltip({ visible: true, content: desc, x: x + 15, y: y - 10 })
-    } else {
+    const updateTooltipPosition = (e: MouseEvent) => {
+      setTooltip((prev) => {
+        if (!prev.visible) return prev
+        return {
+          ...prev,
+          x: e.clientX + 15,
+          y: e.clientY - 10,
+        }
+      })
+    }
+
+    const hideTooltip = () => {
       setTooltip((prev) => ({ ...prev, visible: false }))
     }
-  }
 
-  const handleMapMouseMove = (e: MouseEvent<SVGSVGElement>) => {
-    const element = e.target as Element
-    updateTooltipFromEvent(element, e.pageX, e.pageY)
-  }
+    const paths = document.querySelectorAll('.tooltipsMaps')
+    paths.forEach((el) => {
+      el.addEventListener('mouseover', updateTooltip)
+      el.addEventListener('mousemove', updateTooltipPosition)
+      el.addEventListener('mouseout', hideTooltip)
+    })
 
-  const handleMapMouseLeave = () => {
-    setTooltip((prev) => ({ ...prev, visible: false }))
-  }
+    return () => {
+      paths.forEach((el) => {
+        el.removeEventListener('mouseover', updateTooltip)
+        el.removeEventListener('mousemove', updateTooltipPosition)
+        el.removeEventListener('mouseout', hideTooltip)
+      })
+    }
+  }, [])
 
   const features = [
     {
@@ -192,8 +218,6 @@ export default function Home() {
                   viewBox="0 0 400 500"
                   preserveAspectRatio="xMidYMid meet"
                   className="w-[90%] max-w-[500px] h-auto block"
-                  onMouseMove={handleMapMouseMove}
-                  onMouseLeave={handleMapMouseLeave}
                 >
                   <path className="tooltipsMaps" d="M390.73,473.43l-64.34,10.98c-4.34-1.02-2.81,.77-4.34-1.02s-8.43-3.83-16.85,0c-8.43,3.83-13.28-3.32-13.28-3.32,0,0-3.08,.08-14.81-1.1l-5.36-1.46s-2.55-7.15-3.06-8.17,2.3,0,3.57-1.79-2.04-1.79,1.28-1.79h3.32s-1.15-2.07-1.15-2.07c-.08-.15-.19-.28-.32-.39-1.6-1.34-12.72-10.69-14.62-12.35-2.04-1.79-6.89-4.09-6.89-4.09,0,0-5.11-5.87-6.38-10.47s-4.85-9.7,1.79-23.49l.51-7.4-15.83-4.34v-18.38s-1.28-1.79-1.28-8.43v-10.98s-2.81-1.28-2.04-3.06-4.09-1.28,.77-1.79,1.28,1.28,4.85-.51l3.57-1.79,4.34-2.81s-.77-4.09,2.3-1.79l3.06,2.3,3.32,.26v-3.25l1.02-1.85s5.11,1.02,7.15,1.28l2.04,.26,1.79,2.3,1.79,5.11,6.13,5.11s6.68,12.3,13.79,12.77c19.4,1.28,14.3-.26,19.4,1.28s0-2.3,7.91,4.09l7.91,6.38,2.21,4.86c.2,.44,.61,.75,1.1,.81,1.24,.15,3.59,.69,3.59,2.76,0,2.81-3.32,0,0,2.81l3.32,2.81s-2.55,.51,.51,4.34-3.32-2.3,3.06,3.83l6.38,6.13h0s.26-.26,5.36,5.87c5.11,6.13,4.34,9.45,4.34,9.45,0,0,39.06,34.13,39.06,40.34v1.79Z" data-descricao="&lt;p&gt;Governador: Lúcio Gonçalves Amaral&lt;/p&gt;&lt;strong&gt;Capital:&lt;/strong&gt; &lt;span style='color: #FECD29'&gt;MAVINGA&lt;/span&gt;&lt;br&gt;&lt;strong&gt;Nº de Municípios:&lt;/strong&gt; &lt;span style='color: #FECD29'&gt;9&lt;/span&gt;&lt;br&gt;&lt;strong&gt;Extensão:&lt;/strong&gt; &lt;span style='color: #FECD29'&gt; km²&lt;/span&gt;&lt;br&gt;&lt;strong&gt;Língua:&lt;/strong&gt; &lt;span style='color: #FECD29'&gt;Português, Nganguela&lt;/span&gt;&lt;br&gt;&lt;strong&gt;Etnia:&lt;/strong&gt; &lt;span style='color: #FECD29'&gt;Ovanganguela&lt;/span&gt;" />
                   <path className="tooltipsMaps" d="M241.37,351.9l-1.79-2.81s3.32-2.04,0-6.13l-3.32-4.09-2.55-2.81s.51-2.04-2.55-2.04-1.53,.26-3.06,0l-1.53-.26s.77,0-1.28-1.28,0-1.28-2.04-1.28,2.3,1.79-2.04,0-2.04-.51-4.34-1.79-.26-.26-2.3-1.28,0-.51-2.04-1.02,0,.51-2.04-.51-1.28-2.81-2.04-1.02l-.77,1.79s2.3-.51-1.02,.26-3.83-2.04-3.32,.77,.26,.26,.51,2.81,.26,0,.26,2.55,.77,1.02,0,2.55,3.06-1.28-.77,1.53,.26,2.55-3.83,2.81-2.04-.51-4.09,.26l-2.04,.77s0-1.28-1.28,.77,0-.51-1.28,2.04-.26-1.28-1.28,2.55,1.02,3.32-1.02,3.83,2.04,2.3-2.04,.51-2.55-.26-4.09-1.79,1.28,2.3-1.53-1.53-.77,.26-2.81-3.83l-2.04-4.09s2.55-.26,0,0,1.53-.77-2.55,.26-.77,1.53-4.09,1.02-.77-.26-3.32-.51-1.28-.26-2.55-.26,.51-.26-1.28,0-1.53-4.34-1.79,.26,0,.51-.26,4.6-.26,1.28-.26,4.09-.26-2.3,0,2.81,0,2.04,.26,5.11-2.81-.77,.26,3.06,2.3,2.81,3.06,3.83,0-3.32,.77,1.02,.51,1.53,.77,4.34l.26,2.81s-.26,2.04,1.79,5.11l2.04,3.06s-2.3-2.04,1.28,1.79l3.57,3.83s-1.79-1.79,1.28,2.3l3.06,4.09s.26-1.02,3.83,4.34,.77,0,3.57,5.36,1.79-.51,2.81,5.36,1.02,1.28,1.02,5.87v4.6s.34,1.96,.34,4.51,.34-.17,0,2.55,.51,.34-.34,2.72,1.53-2.89-.85,2.38,.68,2.89-2.38,5.28-4.09-.17-3.06,2.38,.85-.51,1.02,2.55-.17-.85,.17,3.06-.17,.34,.34,3.91,.34,.51,.51,4.26,0,.68,.17,3.74l.17,3.06h35.57s1.87-2.21,3.91,1.19l2.04,3.4,5.28,3.57,1.87,3.4,5.79,2.55,3.4,1.53s1.19-1.36,5.28,0l4.09,1.36s.68,1.02,4.6,1.36-3.4,.17,3.91,.34l7.32,.17,.56-1.26c.08-.18,.12-.37,.12-.57v-.55c0-.23-.05-.45-.16-.65-.16-.3-.46-.87-1.03-1.91-1.02-1.87-1.02,1.02-1.02-1.87s-1.19-2.21,0-2.89,0-.34,1.19-.68,0,2.21,1.19-.34-.51-2.04,1.19-2.55l1.7-.51v-1.02s.17,.68-2.04-1.7-.85-1.19-2.21-2.38,1.36,.34-1.36-1.19,.51,1.02-2.72-1.53,.51-.17-3.23-2.55,.51,.51-3.74-2.38-1.53-.17-4.26-2.89-.85,.34-2.72-2.72,.68,3.06-1.87-3.06l-2.55-6.13s.51,.34-.85-3.4-1.36,.34-1.36-3.74v-4.09s-3.06,.14,.34-3.57c3.4-3.71,1.19-4.63,1.19-4.63l2.21-4.05,.68-5.96-16-4.26s.34-9.19-.17-18.72l-.51-9.53s.17-3.23-.68-7.15,.17-1.19-.85-3.91,.51-1.36-1.02-2.72-1.53,.68-1.53-1.36-2.38-1.7,0-2.04l2.38-.34,1.02,.34s-.51,.17,1.87,0-.17,1.53,2.38-.17,.34,0,2.55-1.7l2.21-1.7,1.79-1.62Z" data-descricao="&lt;p&gt;Governador: JOSÉ MARTINS&lt;/p&gt;&lt;strong&gt;Capital:&lt;/strong&gt; &lt;span style='color: #FECD29'&gt;MENONGUE&lt;/span&gt;&lt;br&gt;&lt;strong&gt;Nº de Municípios:&lt;/strong&gt; &lt;span style='color: #FECD29'&gt;11&lt;/span&gt;&lt;br&gt;&lt;strong&gt;Extensão:&lt;/strong&gt; &lt;span style='color: #FECD29'&gt;00 km²&lt;/span&gt;&lt;br&gt;&lt;strong&gt;Língua:&lt;/strong&gt; &lt;span style='color: #FECD29'&gt;Português, Nganguela&lt;/span&gt;&lt;br&gt;&lt;strong&gt;Etnia:&lt;/strong&gt; &lt;span style='color: #FECD29'&gt;Ovanganguela&lt;/span&gt;" />
@@ -263,6 +287,10 @@ export default function Home() {
           .cls-1, .cls-3, .cls-4 { fill: #000; }
           .cls-2 { fill: #000; }
           .cls-2, .cls-3 { font-size: 7px !important; font-weight: 600; }
+          .cls-1, .cls-2, .cls-3, .cls-4 {
+            pointer-events: none;
+            user-select: none;
+          }
           .cls-5, .cls-6 { fill: #e9d8c1; }
           .cls-6 { stroke: #e9d8c1; stroke-miterlimit: 10; stroke-width: 3px; }
           .tooltipsMaps { fill: #F7C600; cursor: pointer; stroke: #e9d8c1; stroke-miterlimit: 10; stroke-width: 3px; transition: fill 0.2s ease; pointer-events: all; }

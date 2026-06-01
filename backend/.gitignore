@@ -1,0 +1,19 @@
+# ── Ambiente (NUNCA fazer commit destes ficheiros) ────────────────────────────
+.env
+.env.desenvolvimento
+.env.final
+.env.local
+.env.*.local
+
+# ── Build ─────────────────────────────────────────────────────────────────────
+dist/
+
+# ── Dependências ──────────────────────────────────────────────────────────────
+node_modules/
+
+# ── Logs de email (gerados em dev) ───────────────────────────────────────────
+logs/
+
+# ── Sistema operativo ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
