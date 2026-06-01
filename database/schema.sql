@@ -16,8 +16,6 @@ CREATE TABLE utilizador (
     tipo               ENUM('visitante', 'subscrito', 'admin') DEFAULT 'subscrito',
     avatar_url         VARCHAR(255)  NULL DEFAULT NULL,
     ativo              BOOLEAN       DEFAULT TRUE,
-    token_reset        VARCHAR(255)  NULL DEFAULT NULL,
-    token_reset_expira DATETIME      NULL DEFAULT NULL,
     criado_em          TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
     ultimo_acesso      TIMESTAMP     NULL DEFAULT NULL
 );
@@ -286,4 +284,17 @@ CREATE TABLE topico_usuario (
     respostas  INT          DEFAULT 0,
     criado_em  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (usuario_id) REFERENCES utilizador(id) ON DELETE CASCADE
+);
+-- ── Tabela dedicada para tokens de reset de senha ────────────────────────────
+CREATE TABLE password_resets (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT          NOT NULL,
+    token      VARCHAR(255) NOT NULL UNIQUE,
+    expires_at DATETIME     NOT NULL,
+    used       TINYINT(1)   DEFAULT 0,
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES utilizador(id) ON DELETE CASCADE,
+    INDEX idx_token   (token),
+    INDEX idx_user_id (user_id),
+    INDEX idx_expires (expires_at)
 );

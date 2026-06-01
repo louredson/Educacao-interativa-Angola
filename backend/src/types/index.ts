@@ -25,8 +25,6 @@ export interface UserRecord extends RowDataPacket {
   tipo:               UserType
   avatar_url:         string | null
   ativo:              0 | 1
-  token_reset:        string | null
-  token_reset_expira: string | null
   criado_em:          string
   ultimo_acesso:      string | null
 }

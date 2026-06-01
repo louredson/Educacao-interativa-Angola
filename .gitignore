@@ -4,16 +4,6 @@ backend/node_modules/
 frontend/node_modules/
 mobile/node_modules/
 
-# ── Ambiente (NUNCA fazer commit destes ficheiros) ────────────────────────────
-.env
-.env.local
-.env.*.local
-backend/.env
-backend/.env.desenvolvimento
-backend/.env.final
-frontend/.env
-frontend/.env.local
-
 # ── Build ─────────────────────────────────────────────────────────────────────
 dist/
 backend/dist/

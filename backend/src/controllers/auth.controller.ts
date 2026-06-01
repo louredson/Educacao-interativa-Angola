@@ -1,19 +1,24 @@
 import type { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
-import crypto from 'crypto'
 import { pool } from '../config/database.js'
 import { signToken } from '../config/jwt.js'
 import { toPublicUser, type UserRecord } from '../types/index.js'
 import { enviarEmailBoasVindas, enviarEmailRecuperacao } from '../services/email.service.js'
+import {
+  criarTokenReset,
+  encontrarTokenValido,
+  marcarTokenUsado,
+  limparTokensReset,
+} from '../services/password-reset.service.js'
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function findByEmail(email: string): Promise<UserRecord | null> {
   const [rows] = await pool.query<UserRecord[]>(
     'SELECT * FROM utilizador WHERE email = ? LIMIT 1',
     [email],
   )
-  return rows[0] ?? null
+  return (rows as unknown as UserRecord[])[0] ?? null
 }
 
 async function findById(id: number): Promise<UserRecord | null> {
@@ -21,7 +26,7 @@ async function findById(id: number): Promise<UserRecord | null> {
     'SELECT * FROM utilizador WHERE id = ? LIMIT 1',
     [id],
   )
-  return rows[0] ?? null
+  return (rows as unknown as UserRecord[])[0] ?? null
 }
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
@@ -46,7 +51,7 @@ export async function register(req: Request, res: Response) {
   const existing = await findByEmail(String(email).toLowerCase())
   if (existing) return res.status(409).json({ message: 'Email já registado.' })
 
-  const hash    = await bcrypt.hash(String(password), 10)
+  const hash     = await bcrypt.hash(String(password), 10)
   const [result] = await pool.query(
     `INSERT INTO utilizador
        (nome, email, senha_hash, telemovel, provincia, instituicao, curso, tipo)
@@ -59,7 +64,7 @@ export async function register(req: Request, res: Response) {
 
   const token = signToken({ userId: user.id, email: user.email, role: user.tipo })
 
-  // Envia email de boas-vindas de forma não-bloqueante
+  // Email de boas-vindas não-bloqueante
   enviarEmailBoasVindas(user.nome, user.email).catch(() => null)
 
   return res.status(201).json({ token, user: toPublicUser(user) })
@@ -112,21 +117,26 @@ export async function forgotPassword(req: Request, res: Response) {
   const email = String(req.body?.email ?? '').toLowerCase().trim()
   if (!email) return res.status(400).json({ message: 'Email obrigatório.' })
 
-  // Resposta sempre igual — não revela se o email existe
-  const genericOk = { message: 'Se este email estiver registado, receberás um link de recuperação em breve.' }
+  // Resposta genérica — não revela se o email está registado (segurança contra enumeração)
+  const genericOk = {
+    message: 'Se este email estiver registado, receberás um link de recuperação em breve.',
+  }
 
+  // ✅ Verifica se o email existe na base de dados ANTES de criar o token
   const user = await findByEmail(email)
-  if (!user) return res.json(genericOk)
+  if (!user) {
+    // Pequeno delay para evitar timing attacks (user vs no-user)
+    await new Promise((r) => setTimeout(r, 200))
+    return res.json(genericOk)
+  }
 
-  // Gera token seguro de 64 hex chars e guarda na BD
-  const token  = crypto.randomBytes(32).toString('hex')
-  const expira = new Date(Date.now() + 60 * 60 * 1000) // 1 hora
+  // Utilizador inactivo não recebe email (mas resposta continua genérica)
+  if (!user.ativo) return res.json(genericOk)
 
-  await pool.query(
-    'UPDATE utilizador SET token_reset = ?, token_reset_expira = ? WHERE id = ?',
-    [token, expira, user.id],
-  )
+  // Cria token dedicado na tabela password_resets (invalida o anterior)
+  const token = await criarTokenReset(user.id)
 
+  // Envia email de forma não-bloqueante
   enviarEmailRecuperacao(user.nome, user.email, token).catch(() => null)
 
   return res.json(genericOk)
@@ -138,29 +148,44 @@ export async function resetPassword(req: Request, res: Response) {
   const password = String(req.body?.password ?? '')
 
   if (!token || password.length < 8) {
-    return res.status(400).json({ message: 'Token e password (mín. 8 caracteres) são obrigatórios.' })
+    return res
+      .status(400)
+      .json({ message: 'Token e password (mín. 8 caracteres) são obrigatórios.' })
   }
 
-  const [rows] = await pool.query<UserRecord[]>(
-    'SELECT * FROM utilizador WHERE token_reset = ? AND token_reset_expira > NOW() AND ativo = 1 LIMIT 1',
-    [token],
-  )
-  const user = rows[0]
-  if (!user) {
-    return res.status(400).json({ message: 'Link inválido ou expirado. Solicita um novo.' })
+  // Valida token na tabela dedicada
+  const resetRecord = await encontrarTokenValido(token)
+  if (!resetRecord) {
+    return res
+      .status(400)
+      .json({ message: 'Link inválido ou expirado. Solicita um novo.' })
+  }
+
+  // Carrega o utilizador para verificar a password actual
+  const user = await findById(resetRecord.user_id)
+  if (!user || !user.ativo) {
+    return res.status(400).json({ message: 'Utilizador não encontrado ou inactivo.' })
   }
 
   // Impede reutilizar a mesma password
   const equal = await bcrypt.compare(password, user.senha_hash)
   if (equal) {
-    return res.status(422).json({ message: 'A nova senha não pode ser igual à senha actual.' })
+    return res
+      .status(422)
+      .json({ message: 'A nova senha não pode ser igual à senha actual.' })
   }
 
   const hash = await bcrypt.hash(password, 10)
+
+  // Actualiza a senha e marca o token como usado (transacção implícita via 2 queries atómicas)
   await pool.query(
-    'UPDATE utilizador SET senha_hash = ?, token_reset = NULL, token_reset_expira = NULL WHERE id = ?',
+    'UPDATE utilizador SET senha_hash = ? WHERE id = ?',
     [hash, user.id],
   )
+  await marcarTokenUsado(resetRecord.id)
+
+  // Limpa todos os outros tokens deste utilizador (segurança extra)
+  await limparTokensReset(user.id)
 
   return res.json({ message: 'Senha redefinida com sucesso.' })
 }
