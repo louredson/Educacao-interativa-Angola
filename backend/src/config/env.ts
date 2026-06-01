@@ -7,4 +7,6 @@ export const env = {
   dbUser: process.env.DB_USER ?? 'root',
   dbPassword: process.env.DB_PASSWORD ?? '',
   dbName: process.env.DB_NAME ?? 'economia_historia',
+  jwtSecret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
 }

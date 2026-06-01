@@ -1,6 +1,21 @@
-const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000/api'
+import axios from 'axios'
+import { API_BASE_URL } from '../constants/api'
+import { getStoredToken } from './storage'
 
-export async function getHealth() {
-  const response = await fetch(`${baseUrl}/health`)
-  return response.json()
-}
+export const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 20000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+api.interceptors.request.use(async (config) => {
+  const token = await getStoredToken()
+  if (token) {
+    config.headers = config.headers ?? {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
