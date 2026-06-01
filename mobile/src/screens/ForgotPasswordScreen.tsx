@@ -44,7 +44,7 @@ export function ForgotPasswordScreen({ navigation }: Props) {
   }
 
   return (
-    <AppScreen scroll={false} showHeader={false}>
+    <AppScreen scroll={false} showHeader={false} showBack>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.hero}>

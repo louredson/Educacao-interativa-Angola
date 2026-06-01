@@ -10,6 +10,7 @@ import { ErrorBanner } from '../components/ErrorBanner'
 import { colors, spacing } from '../constants/colors'
 import { useAuth } from '../context/AuthContext'
 import type { AuthStackParamList } from '../types/navigation'
+import { navigateToTopLevel } from '../utils/navigation'
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>
 
@@ -24,10 +25,11 @@ export function LoginScreen({ navigation }: Props) {
     if (!canSubmit) return
     clearError()
     await signIn({ email: email.trim(), password })
+    navigateToTopLevel(navigation, 'Main')
   }
 
   return (
-    <AppScreen scroll={false} showHeader={false}>
+    <AppScreen scroll={false} showHeader={false} showBack>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
@@ -72,7 +74,10 @@ export function LoginScreen({ navigation }: Props) {
             <AppButton
               label="Entrar em modo demo"
               variant="secondary"
-              onPress={signInDemo}
+              onPress={async () => {
+                await signInDemo()
+                navigateToTopLevel(navigation, 'Main')
+              }}
               loading={isAuthenticating}
             />
             <AppButton

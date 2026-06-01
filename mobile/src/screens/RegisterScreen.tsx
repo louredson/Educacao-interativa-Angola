@@ -10,6 +10,7 @@ import { ErrorBanner } from '../components/ErrorBanner'
 import { colors, spacing } from '../constants/colors'
 import { useAuth } from '../context/AuthContext'
 import type { AuthStackParamList } from '../types/navigation'
+import { navigateToTopLevel } from '../utils/navigation'
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>
 
@@ -50,10 +51,11 @@ export function RegisterScreen({ navigation }: Props) {
       institution: institution.trim() || null,
       course: course.trim() || null,
     })
+    navigateToTopLevel(navigation, 'Main')
   }
 
   return (
-    <AppScreen scroll={false} showHeader={false}>
+    <AppScreen scroll={false} showHeader={false} showBack>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.hero}>

@@ -5,6 +5,7 @@ import { NavigationContainer, DefaultTheme } from '@react-navigation/native'
 import { AuthProvider } from './src/context/AuthContext'
 import { AppNavigator } from './src/navigation'
 import { colors } from './src/constants/colors'
+import { navigationRef } from './src/navigation/navigationRef'
 
 const navTheme = {
   ...DefaultTheme,
@@ -24,7 +25,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <NavigationContainer theme={navTheme}>
+          <NavigationContainer ref={navigationRef} theme={navTheme}>
             <StatusBar style="light" />
             <AppNavigator />
           </NavigationContainer>

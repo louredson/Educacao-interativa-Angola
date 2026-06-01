@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useNavigation } from '@react-navigation/native'
 import { AppButton } from '../components/AppButton'
 import { AppCard } from '../components/AppCard'
 import { AppScreen } from '../components/AppScreen'
 import { AppText } from '../components/AppText'
 import { AppTextInput } from '../components/AppTextInput'
+import { ContentCard } from '../components/ContentCard'
 import { colors, radii, spacing } from '../constants/colors'
 import { demoContents } from '../mocks/data'
+import { navigateToTopLevel } from '../utils/navigation'
 
 const bookImages = [
   require('../assets/comercio_periodo_colonial.jpg'),
@@ -50,19 +53,23 @@ const comments = [
 ]
 
 export function ExploreScreen() {
+  const navigation = useNavigation<any>()
   const [selectedFilter, setSelectedFilter] = useState('Tudo')
   const [selectedBook, setSelectedBook] = useState(0)
   const [commentText, setCommentText] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const currentBook = livrosDoDia[selectedBook]
 
   const filteredContents = useMemo(() => {
-    if (selectedFilter === 'Tudo') return demoContents
     return demoContents.filter((item) => {
-      const text = `${item.titulo} ${item.categoria ?? ''} ${item.tema ?? ''}`.toLowerCase()
-      return text.includes(selectedFilter.toLowerCase())
+      const searchable = `${item.titulo} ${item.descricao ?? ''} ${item.categoria ?? ''} ${item.tema ?? ''}`.toLowerCase()
+      const matchesFilter =
+        selectedFilter === 'Tudo' || searchable.includes(selectedFilter.toLowerCase())
+      const matchesSearch = searchable.includes(searchQuery.toLowerCase())
+      return matchesFilter && matchesSearch
     })
-  }, [selectedFilter])
+  }, [selectedFilter, searchQuery])
 
   const addComment = () => {
     setCommentText('')
@@ -72,11 +79,23 @@ export function ExploreScreen() {
     <AppScreen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <AppCard>
-          <AppText variant="label">Explorar</AppText>
-          <AppText variant="title">Biblioteca em destaque</AppText>
-          <AppText variant="muted">
-            Conteúdos educativos, economia, história, textos, vídeo e leitura, exactamente na linha da web.
-          </AppText>
+          <View style={styles.heroTop}>
+            <View style={styles.badge}>
+              <Ionicons name="search-outline" size={12} color={colors.primary} />
+              <AppText style={styles.badgeText}>Explorar</AppText>
+            </View>
+            <AppText variant="title">Biblioteca em destaque</AppText>
+            <AppText variant="muted">
+              Conteúdos educativos, economia, história, textos, vídeo e leitura, exactamente na linha da web.
+            </AppText>
+          </View>
+
+          <AppTextInput
+            label="Pesquisar conteúdos"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Pesquisar por título, tema ou categoria"
+          />
         </AppCard>
 
         <View style={styles.filterRow}>
@@ -94,29 +113,42 @@ export function ExploreScreen() {
           })}
         </View>
 
-        <View style={styles.bookCarousel}>
+        <AppCard>
+          <View style={styles.sectionHeading}>
+            <View style={styles.badge}>
+              <Ionicons name="book-outline" size={12} color={colors.primary} />
+              <AppText style={styles.badgeText}>Livro do dia</AppText>
+            </View>
+            <AppText variant="subtitle">{currentBook.title}</AppText>
+            <AppText variant="muted">
+              {currentBook.author} • {currentBook.year} • {currentBook.genre}
+            </AppText>
+          </View>
+
           <Image source={bookImages[selectedBook]} style={styles.bookImage} />
+
           <View style={styles.bookControls}>
-            <Pressable onPress={() => setSelectedBook((prev) => (prev === 0 ? livrosDoDia.length - 1 : prev - 1))} style={styles.iconButton}>
+            <Pressable
+              onPress={() => setSelectedBook((prev) => (prev === 0 ? livrosDoDia.length - 1 : prev - 1))}
+              style={styles.iconButton}
+            >
               <Ionicons name="chevron-back" size={20} color={colors.text} />
             </Pressable>
-            <Pressable onPress={() => setSelectedBook((prev) => (prev === livrosDoDia.length - 1 ? 0 : prev + 1))} style={styles.iconButton}>
+            <Pressable
+              onPress={() => setSelectedBook((prev) => (prev === livrosDoDia.length - 1 ? 0 : prev + 1))}
+              style={styles.iconButton}
+            >
               <Ionicons name="chevron-forward" size={20} color={colors.text} />
             </Pressable>
           </View>
-          <View style={styles.bookMeta}>
-            <AppText style={styles.bookGenre}>{currentBook.genre}</AppText>
-            <AppText variant="subtitle">{currentBook.title}</AppText>
-            <AppText variant="muted">
-              {currentBook.author} • {currentBook.year}
-            </AppText>
-            <AppText variant="body">{currentBook.summary}</AppText>
-          </View>
+
+          <AppText variant="body">{currentBook.summary}</AppText>
+
           <View style={styles.bookActions}>
-            <AppButton label="Ler mais" />
+            <AppButton label="Ler mais" onPress={() => navigateToTopLevel(navigation, 'ContentsTab')} />
             <AppButton label="Favoritar" variant="secondary" />
           </View>
-        </View>
+        </AppCard>
 
         <AppCard>
           <View style={styles.sectionHeading}>
@@ -125,18 +157,18 @@ export function ExploreScreen() {
               <AppText style={styles.badgeText}>Conteúdos em destaque</AppText>
             </View>
             <AppText variant="subtitle">Publicações recentes</AppText>
+            <AppText variant="muted">
+              Os mesmos conteúdos da web, agora num formato vertical mais confortável para o telemóvel.
+            </AppText>
           </View>
 
           <View style={styles.contentList}>
             {filteredContents.map((item) => (
-              <View key={item.id} style={styles.contentItem}>
-                <View style={styles.contentBullet} />
-                <View style={styles.contentBody}>
-                  <AppText style={styles.contentTitle}>{item.titulo}</AppText>
-                  <AppText variant="muted">{item.descricao ?? 'Sem descrição disponível'}</AppText>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-              </View>
+              <ContentCard
+                key={item.id}
+                content={item}
+                onPress={() => navigateToTopLevel(navigation, 'ContentsTab')}
+              />
             ))}
           </View>
         </AppCard>
@@ -165,7 +197,12 @@ export function ExploreScreen() {
           </View>
 
           <View style={styles.commentComposer}>
-            <AppTextInput label="Novo comentário" value={commentText} onChangeText={setCommentText} placeholder="Escreva a sua opinião..." />
+            <AppTextInput
+              label="Novo comentário"
+              value={commentText}
+              onChangeText={setCommentText}
+              placeholder="Escreva a sua opinião..."
+            />
             <AppButton label="Comentar" onPress={addComment} />
           </View>
         </AppCard>
@@ -178,6 +215,9 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     gap: spacing.lg,
+  },
+  heroTop: {
+    gap: 8,
   },
   filterRow: {
     flexDirection: 'row',
@@ -204,47 +244,6 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: '#FFF',
   },
-  bookCarousel: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  bookImage: {
-    width: '100%',
-    height: 220,
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceAlt,
-  },
-  bookControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  iconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  bookMeta: {
-    gap: 4,
-  },
-  bookGenre: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  bookActions: {
-    gap: spacing.sm,
-  },
   sectionHeading: {
     gap: 6,
     marginBottom: spacing.sm,
@@ -266,31 +265,34 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
+  bookImage: {
+    width: '100%',
+    height: 220,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceAlt,
+    marginBottom: spacing.sm,
+  },
+  bookControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  iconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  bookActions: {
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
   contentList: {
     gap: spacing.sm,
-  },
-  contentItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  contentBullet: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 5,
-    backgroundColor: colors.primary,
-  },
-  contentBody: {
-    flex: 1,
-    gap: 2,
-  },
-  contentTitle: {
-    fontWeight: '700',
-    color: colors.text,
   },
   commentList: {
     gap: spacing.sm,
@@ -328,4 +330,3 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
 })
-

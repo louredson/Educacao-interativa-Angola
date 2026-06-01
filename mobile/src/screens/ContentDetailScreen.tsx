@@ -1,29 +1,35 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Linking, ScrollView, StyleSheet, View } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { AppButton } from '../components/AppButton'
 import { AppCard } from '../components/AppCard'
+import { AuthPromptCard } from '../components/AuthPromptCard'
 import { AppScreen } from '../components/AppScreen'
 import { AppText } from '../components/AppText'
 import { ErrorBanner } from '../components/ErrorBanner'
 import { colors, spacing } from '../constants/colors'
+import { useAuth } from '../context/AuthContext'
 import { getContentById } from '../services/contents'
 import type { ContentItem } from '../types/api'
 import type { ContentStackParamList, HomeStackParamList } from '../types/navigation'
 import { formatDate } from '../utils/format'
 import { getFriendlyError } from '../utils/errors'
+import { navigateToTopLevel } from '../utils/navigation'
 
 type Props =
   | NativeStackScreenProps<ContentStackParamList, 'ContentDetail'>
   | NativeStackScreenProps<HomeStackParamList, 'ContentDetail'>
 
-export function ContentDetailScreen({ route }: Props) {
+export function ContentDetailScreen({ navigation, route }: Props) {
+  const { isAuthenticated } = useAuth()
   const [content, setContent] = useState<ContentItem | null>(route.params.content ?? null)
   const [loading, setLoading] = useState(!route.params.content)
   const [error, setError] = useState<string | null>(null)
+  const isRestricted = content?.tipo === 'texto_jindungo'
 
   useEffect(() => {
     let mounted = true
+
     async function load() {
       if (content) return
       try {
@@ -62,20 +68,34 @@ export function ContentDetailScreen({ route }: Props) {
                 <AppText variant="muted">Publicado em: {formatDate(content.publicado_em)}</AppText>
               </View>
             </AppCard>
-            <AppCard>
-              <AppText variant="subtitle">Conteúdo completo</AppText>
-              <AppText variant="body">{content.conteudo_completo ?? 'Este item não tem conteúdo completo associado.'}</AppText>
-            </AppCard>
-                        <AppButton
-              label="Abrir recurso"
-              variant="secondary"
-              onPress={() => {
-                if (content.url_recurso) {
-                  void Linking.openURL(content.url_recurso)
-                }
-              }}
-              disabled={!content.url_recurso}
-            />
+
+            {isRestricted && !isAuthenticated ? (
+              <AuthPromptCard
+                title="Conteúdo restrito"
+                description="Este material requer login, mas o resto da plataforma continua acessível para navegação normal."
+                onLogin={() => navigateToTopLevel(navigation, 'Auth')}
+                onRegister={() => navigateToTopLevel(navigation, 'Auth')}
+              />
+            ) : (
+              <>
+                <AppCard>
+                  <AppText variant="subtitle">Conteúdo completo</AppText>
+                  <AppText variant="body">
+                    {content.conteudo_completo ?? 'Este item não tem conteúdo completo associado.'}
+                  </AppText>
+                </AppCard>
+                <AppButton
+                  label="Abrir recurso"
+                  variant="secondary"
+                  onPress={() => {
+                    if (content.url_recurso) {
+                      void Linking.openURL(content.url_recurso)
+                    }
+                  }}
+                  disabled={!content.url_recurso}
+                />
+              </>
+            )}
           </>
         ) : null}
       </ScrollView>
@@ -95,7 +115,3 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
 })
-
-
-
-

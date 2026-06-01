@@ -2,8 +2,8 @@ import type { ContentItem } from './api'
 
 export type RootStackParamList = {
   Splash: undefined
+  Main: undefined
   Auth: undefined
-  App: undefined
 }
 
 export type AuthStackParamList = {

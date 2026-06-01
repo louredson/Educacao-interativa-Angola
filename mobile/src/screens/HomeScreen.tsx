@@ -11,6 +11,7 @@ import { HeroCarousel } from '../components/home/HeroCarousel'
 import { colors, radii, spacing } from '../constants/colors'
 import { faqs, features, missionItems, statsData } from '../constants/home'
 import type { HomeStackParamList } from '../types/navigation'
+import { navigateToTopLevel } from '../utils/navigation'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Home'>
 
@@ -26,7 +27,7 @@ export function HomeScreen({ navigation }: Props) {
   return (
     <AppScreen>
       <View style={styles.root}>
-        <HeroCarousel onExplore={() => navigation.getParent()?.navigate('ContentsTab')} />
+        <HeroCarousel onExplore={() => navigateToTopLevel(navigation, 'ContentsTab')} />
 
         <AppCard>
           <View style={styles.statsGrid}>
@@ -71,7 +72,7 @@ export function HomeScreen({ navigation }: Props) {
               <AppButton
                 label="Explorar agora"
                 variant="ghost"
-                onPress={() => navigation.getParent()?.navigate('ContentsTab')}
+                onPress={() => navigateToTopLevel(navigation, 'ContentsTab')}
               />
             </AppCard>
           ))}
@@ -153,7 +154,7 @@ export function HomeScreen({ navigation }: Props) {
             Do glorioso Reino do Kongo à economia diversificada e vibrante de hoje, explora o
             conhecimento que nos define como povo resiliente.
           </AppText>
-          <AppButton label="Começar agora" onPress={() => navigation.getParent()?.navigate('ContentsTab')} />
+          <AppButton label="Começar agora" onPress={() => navigateToTopLevel(navigation, 'ContentsTab')} />
         </AppCard>
       </View>
     </AppScreen>

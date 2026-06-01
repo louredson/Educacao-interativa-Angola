@@ -1,4 +1,4 @@
-﻿import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { Ionicons } from '@expo/vector-icons'
 import { useMemo } from 'react'
@@ -26,10 +26,12 @@ import type {
   ContentStackParamList,
   HomeStackParamList,
   ProfileStackParamList,
+  RootStackParamList,
 } from '../types/navigation'
 
 type IoniconName = ComponentProps<typeof Ionicons>['name']
 
+const RootStack = createNativeStackNavigator<RootStackParamList>()
 const AuthStack = createNativeStackNavigator<AuthStackParamList>()
 const HomeStack = createNativeStackNavigator<HomeStackParamList>()
 const ContentStack = createNativeStackNavigator<ContentStackParamList>()
@@ -186,37 +188,27 @@ function MainTabs() {
 }
 
 export function AppNavigator() {
-  const { isBootstrapping, isAuthenticated } = useAuth()
+  const { isBootstrapping } = useAuth()
 
   if (isBootstrapping) {
     return <SplashScreen />
   }
 
-  return isAuthenticated ? <MainTabs /> : <AuthNavigator />
+  return (
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Screen name="Main" component={MainTabs} />
+      <RootStack.Screen name="Auth" component={AuthNavigator} />
+    </RootStack.Navigator>
+  )
 }
 
 const styles = StyleSheet.create({
   hiddenTabBar: {
     display: 'none',
   },
-  tabBar: {
-    height: 68,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: colors.surface,
-    borderTopColor: colors.border,
-    borderTopWidth: 1,
-    elevation: 10,
-    shadowColor: '#000000',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: -4 },
-  },
   tabLabel: {
     fontSize: 11,
     fontWeight: '700',
   },
 })
-
-
 

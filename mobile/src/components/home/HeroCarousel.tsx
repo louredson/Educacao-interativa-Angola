@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Video, ResizeMode } from 'expo-av'
+import { VideoView, useVideoPlayer } from 'expo-video'
 import { AppButton } from '../AppButton'
 import { AppText } from '../AppText'
 import { colors, radii, spacing } from '../../constants/colors'
@@ -14,17 +14,19 @@ interface HeroCarouselProps {
 export function HeroCarousel({ onExplore }: HeroCarouselProps) {
   const { isAuthenticated } = useAuth()
   const hero = heroSlides[0]
+  const player = useVideoPlayer(require('../../assets/hero.mp4'), (videoPlayer) => {
+    videoPlayer.loop = true
+    videoPlayer.play()
+  })
 
   return (
     <View style={styles.card}>
       <View style={styles.videoWrap}>
-        <Video
-          source={require('../../assets/hero.mp4')}
+        <VideoView
+          player={player}
           style={styles.video}
-          resizeMode={ResizeMode.COVER}
-          shouldPlay
-          isLooping
-          isMuted
+          contentFit="cover"
+          nativeControls={false}
         />
         <View style={styles.videoOverlay} />
         <View style={styles.videoBadge}>
