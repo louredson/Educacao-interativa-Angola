@@ -10,7 +10,7 @@ Projecto educativo sobre economia e história de Angola, organizado em três par
 ## Estrutura
 
 ```text
-Educação interativa Angola/
+Educação Interativa Angola/
 ├─ frontend/
 ├─ backend/
 ├─ mobile/
