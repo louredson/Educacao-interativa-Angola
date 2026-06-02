@@ -38,7 +38,8 @@ function logEmail(to: string, subject: string, link: string): void {
       '',
     ].join('\n')
     fs.appendFileSync(logFile, entry)
-    console.log(`📧 [EMAIL] ${to} → ${link}`)
+    console.log(`📧 [EMAIL-LOG] Para: ${to}`)
+    console.log(`🔗 [EMAIL-LOG] Link: ${link}`)
   } catch {
     console.warn('⚠️  Não foi possível escrever em logs/emails.log')
   }
@@ -109,24 +110,26 @@ export async function enviarEmailRecuperacao(
   const link    = `${env.frontendUrl}/redefinir-senha?token=${token}`
   const subject = 'Recuperação de Senha — Economia com História'
 
-  // Regista sempre em log (útil em dev mesmo com SMTP activo)
-  if (env.isDev) logEmail(email, subject, link)
+  // Regista sempre em log (útil para depuração mesmo com SMTP activo)
+  logEmail(email, subject, link)
 
-  if (smtpConfigured()) {
-    try {
-      await createTransporter().sendMail({
-        from:    env.emailFrom,
-        to:      email,
-        subject,
-        html:    tplRecuperacao(nome, link),
-      })
-      if (env.isDev) console.log(`✅ Email de recuperação enviado para ${email}`)
-    } catch (err) {
-      console.warn('⚠️  SMTP falhou — link disponível em logs/emails.log:', err)
-    }
-  } else {
-    // Sem SMTP: apenas o log acima é suficiente
-    if (!env.isDev) console.warn('⚠️  EMAIL_USER/EMAIL_PASS não configurados.')
+  if (!smtpConfigured()) {
+    console.warn('⚠️  EMAIL_USER/EMAIL_PASS não configurados — email não enviado. Ver logs/emails.log para o link.')
+    return
+  }
+
+  try {
+    const info = await createTransporter().sendMail({
+      from:    env.emailFrom,
+      to:      email,
+      subject,
+      html:    tplRecuperacao(nome, link),
+    })
+    console.log(`✅ Email de recuperação enviado para ${email} (messageId: ${info.messageId})`)
+  } catch (err) {
+    // Agora o erro é visível nos logs do servidor
+    console.error('❌ SMTP falhou ao enviar email de recuperação:', err)
+    console.log(`🔗 Link de recuperação (usar manualmente): ${link}`)
   }
 }
 
@@ -143,6 +146,7 @@ export async function enviarEmailBoasVindas(
       subject: 'Bem-vindo à Economia com História!',
       html:    tplBoasVindas(nome),
     })
+    console.log(`✅ Email de boas-vindas enviado para ${email}`)
   } catch (err) {
     console.warn('⚠️  Email de boas-vindas não enviado:', err)
   }

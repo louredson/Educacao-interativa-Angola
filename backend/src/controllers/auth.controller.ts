@@ -79,7 +79,6 @@ export async function login(req: Request, res: Response) {
   }
 
   const user = await findByEmail(String(email).toLowerCase())
-  // Mensagem genérica — não revela se o email existe
   if (!user || !user.ativo) {
     return res.status(401).json({ message: 'Credenciais inválidas.' })
   }
@@ -97,7 +96,6 @@ export async function login(req: Request, res: Response) {
 
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
 export function logout(_req: Request, res: Response) {
-  // JWT stateless — o cliente remove o token localmente.
   res.json({ message: 'Sessão terminada.' })
 }
 
@@ -117,29 +115,39 @@ export async function forgotPassword(req: Request, res: Response) {
   const email = String(req.body?.email ?? '').toLowerCase().trim()
   if (!email) return res.status(400).json({ message: 'Email obrigatório.' })
 
-  // Resposta genérica — não revela se o email está registado (segurança contra enumeração)
-  const genericOk = {
-    message: 'Se este email estiver registado, receberás um link de recuperação em breve.',
-  }
-
-  // ✅ Verifica se o email existe na base de dados ANTES de criar o token
+  // Verifica se o email existe na base de dados
   const user = await findByEmail(email)
+
   if (!user) {
-    // Pequeno delay para evitar timing attacks (user vs no-user)
-    await new Promise((r) => setTimeout(r, 200))
-    return res.json(genericOk)
+    return res.status(404).json({
+      message: 'Este email não está registado. Verifica o endereço introduzido.',
+    })
   }
 
-  // Utilizador inactivo não recebe email (mas resposta continua genérica)
-  if (!user.ativo) return res.json(genericOk)
+  // Utilizador inactivo
+  if (!user.ativo) {
+    return res.status(403).json({
+      message: 'Esta conta está inactiva. Contacta o suporte.',
+    })
+  }
 
   // Cria token dedicado na tabela password_resets (invalida o anterior)
   const token = await criarTokenReset(user.id)
 
-  // Envia email de forma não-bloqueante
-  enviarEmailRecuperacao(user.nome, user.email, token).catch(() => null)
+  // Envia email — aguarda para poder reportar erro ao cliente
+  try {
+    await enviarEmailRecuperacao(user.nome, user.email, token)
+  } catch (err) {
+    console.error('❌ Erro ao enviar email de recuperação:', err)
+    // Mesmo com falha no SMTP, o token ficou gravado e o link está em logs/emails.log
+    return res.status(500).json({
+      message: 'Não foi possível enviar o email. Tenta novamente mais tarde.',
+    })
+  }
 
-  return res.json(genericOk)
+  return res.json({
+    message: 'Email de recuperação enviado com sucesso. Verifica a tua caixa de entrada.',
+  })
 }
 
 // ── POST /api/auth/reset-password ────────────────────────────────────────────
@@ -161,7 +169,7 @@ export async function resetPassword(req: Request, res: Response) {
       .json({ message: 'Link inválido ou expirado. Solicita um novo.' })
   }
 
-  // Carrega o utilizador para verificar a password actual
+  // Carrega o utilizador
   const user = await findById(resetRecord.user_id)
   if (!user || !user.ativo) {
     return res.status(400).json({ message: 'Utilizador não encontrado ou inactivo.' })
@@ -177,14 +185,11 @@ export async function resetPassword(req: Request, res: Response) {
 
   const hash = await bcrypt.hash(password, 10)
 
-  // Actualiza a senha e marca o token como usado (transacção implícita via 2 queries atómicas)
   await pool.query(
     'UPDATE utilizador SET senha_hash = ? WHERE id = ?',
     [hash, user.id],
   )
   await marcarTokenUsado(resetRecord.id)
-
-  // Limpa todos os outros tokens deste utilizador (segurança extra)
   await limparTokensReset(user.id)
 
   return res.json({ message: 'Senha redefinida com sucesso.' })

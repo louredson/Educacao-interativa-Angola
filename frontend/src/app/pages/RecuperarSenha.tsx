@@ -4,10 +4,10 @@ import { BookOpen, Mail, Loader2, CheckCircle2, ArrowLeft } from 'lucide-react'
 import { apiRequest } from '../services/api'
 
 export default function RecuperarSenha() {
-  const [email,    setEmail]    = useState('')
-  const [loading,  setLoading]  = useState(false)
-  const [enviado,  setEnviado]  = useState(false)
-  const [erro,     setErro]     = useState('')
+  const [email,   setEmail]   = useState('')
+  const [loading, setLoading] = useState(false)
+  const [enviado, setEnviado] = useState(false)
+  const [erro,    setErro]    = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -22,7 +22,8 @@ export default function RecuperarSenha() {
       })
       setEnviado(true)
     } catch (err: unknown) {
-      setErro(err instanceof Error ? err.message : 'Ocorreu um erro.')
+      // Mostra a mensagem real devolvida pelo servidor (email não registado, etc.)
+      setErro(err instanceof Error ? err.message : 'Ocorreu um erro. Tenta novamente.')
     } finally {
       setLoading(false)
     }
@@ -39,8 +40,7 @@ export default function RecuperarSenha() {
           </div>
           <h1 className="text-xl font-bold text-foreground mb-2">Email enviado!</h1>
           <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
-            Se o endereço <strong>{email}</strong> estiver registado, vais receber um link de
-            recuperação em breve.<br /><br />
+            Enviámos um link de recuperação para <strong>{email}</strong>.<br /><br />
             O link expira em <strong>1 hora</strong>. Verifica também a pasta de spam.
           </p>
           <Link

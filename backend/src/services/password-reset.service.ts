@@ -1,8 +1,9 @@
 import crypto from 'crypto'
+import type { RowDataPacket } from 'mysql2'
 import { pool } from '../config/database.js'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
-interface PasswordResetRecord {
+interface PasswordResetRecord extends RowDataPacket {
   id:         number
   user_id:    number
   token:      string
@@ -41,7 +42,7 @@ export async function encontrarTokenValido(
      LIMIT 1`,
     [token.trim()],
   )
-  return (rows as unknown as PasswordResetRecord[])[0] ?? null
+  return rows[0] ?? null
 }
 
 /** Marca o token como usado após a senha ser redefinida com sucesso. */
