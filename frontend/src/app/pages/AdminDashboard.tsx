@@ -54,7 +54,6 @@ import {
   Home,
   Compass,
   HelpCircle,
-  ChevronLeft,
   Menu,
   BookOpen as BookOpenIcon,
 } from 'lucide-react';
@@ -689,12 +688,6 @@ export default function AdminDashboard() {
 
             {/* Lado direito */}
             <div className="flex items-center gap-2">
-              <Link
-                to="/"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" /> Voltar ao site
-              </Link>
               <button
                 onClick={handleAdminLogout}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
