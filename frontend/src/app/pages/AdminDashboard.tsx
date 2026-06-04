@@ -1,6 +1,6 @@
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest } from '../services/api';
-import { useNavigate } from 'react-router';
+import { useNavigate, Link } from 'react-router';
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -50,6 +50,13 @@ import {
   Building,
   GraduationCap,
   PenLine,
+  LogOut,
+  Home,
+  Compass,
+  HelpCircle,
+  ChevronLeft,
+  Menu,
+  BookOpen as BookOpenIcon,
 } from 'lucide-react';
 
 interface PodcastEpisode {
@@ -99,13 +106,14 @@ interface PublishedTopic {
 }
 
 export default function AdminDashboard() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [users, setUsers] = useState<any[]>([]);
   const [contents, setContents] = useState<any[]>([]);
   const [ranking, setRanking] = useState<any[]>([]);
   const [contentType, setContentType] = useState<string>('texto_normal');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Image upload state
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
@@ -198,6 +206,11 @@ export default function AdminDashboard() {
     { id: 'podcast', label: 'Podcast', icon: Headphones, description: 'Conteúdos em formato de áudio com episódios' },
     { id: 'topico', label: 'Tópicos', icon: MessageSquare, description: 'Tópicos de discussão públicos ou privados' },
   ];
+
+  const handleAdminLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   useEffect(() => {
     if (!isAuthenticated || !user?.isAdmin) {
@@ -640,7 +653,97 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      {/* Header */}
+      {/* ── Topbar de Navegação ─────────────────────────────────────────────── */}
+      <nav className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex h-14 items-center justify-between">
+            {/* Logo / Brand */}
+            <Link to="/" className="flex items-center gap-2.5 flex-shrink-0">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-700">
+                <BookOpenIcon className="h-4 w-4 text-white" />
+              </div>
+              <span className="hidden sm:block text-sm font-bold text-slate-900 leading-tight">
+                Economia com História
+              </span>
+            </Link>
+
+            {/* Links de navegação — desktop */}
+            <div className="hidden md:flex items-center gap-1">
+              <Link to="/" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                <Home className="w-4 h-4" /> Início
+              </Link>
+              <Link to="/explorar" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                <Compass className="w-4 h-4" /> Explorar
+              </Link>
+              <Link to="/resources" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                <HelpCircle className="w-4 h-4" /> Quizes
+              </Link>
+              <Link to="/forum" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                <MessageSquare className="w-4 h-4" /> Debate
+              </Link>
+              <span className="mx-1 h-5 w-px bg-slate-200" />
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-red-700 bg-red-50">
+                <Shield className="w-4 h-4" /> Admin
+              </span>
+            </div>
+
+            {/* Lado direito */}
+            <div className="flex items-center gap-2">
+              <Link
+                to="/"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" /> Voltar ao site
+              </Link>
+              <button
+                onClick={handleAdminLogout}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Sair</span>
+              </button>
+              {/* Hamburguer mobile */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 md:hidden transition-colors"
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Menu mobile */}
+        {mobileMenuOpen && (
+          <div className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
+            <nav className="space-y-1">
+              {[
+                { label: 'Início', href: '/', icon: Home },
+                { label: 'Explorar', href: '/explorar', icon: Compass },
+                { label: 'Quizes', href: '/resources', icon: HelpCircle },
+                { label: 'Debate', href: '/forum', icon: MessageSquare },
+              ].map(({ label, href, icon: Icon }) => (
+                <Link
+                  key={href}
+                  to={href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  <Icon className="h-4 w-4" /> {label}
+                </Link>
+              ))}
+              <button
+                onClick={handleAdminLogout}
+                className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="h-4 w-4" /> Sair
+              </button>
+            </nav>
+          </div>
+        )}
+      </nav>
+
+      {/* ── Header do painel ────────────────────────────────────────────────── */}
       <section className="bg-gradient-to-r from-red-600 via-black to-yellow-600 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex items-center gap-3 mb-4">
