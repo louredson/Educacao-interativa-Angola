@@ -1,4 +1,5 @@
 import { useAuth } from '../contexts/AuthContext';
+import { apiRequest } from '../services/api';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { User, Mail, MapPin, Calendar, Trophy, Award, TrendingUp, BarChart3, Medal, Edit, GraduationCap, BookOpen, FileText, MessageSquare, Camera, Upload, Trash2, Save, X, Eye, Clock } from 'lucide-react';
@@ -151,62 +152,62 @@ export default function Profile() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (user) {
-      // Carregar estatísticas do utilizador
-      const savedStats = localStorage.getItem(`quiz_stats_${user.email}`);
-      if (savedStats) {
-        const stats = JSON.parse(savedStats);
-        setTotalScore(stats.totalScore || 0);
-        setTotalQuizzes(stats.totalQuizzes || 0);
-      }
+    if (!user) return;
 
-      // Carregar ranking
-      const savedRanking = localStorage.getItem('quiz_ranking');
-      if (savedRanking) {
-        const rankingData = JSON.parse(savedRanking);
-        setRanking(rankingData);
+    // Inicializa campos editáveis com dados do utilizador autenticado
+    setEditedUser({
+      name: (user as any).nome ?? user.name ?? '',
+      email: user.email ?? '',
+      province: (user as any).provincia ?? (user as any).province ?? 'Luanda',
+      institution: (user as any).instituicao ?? (user as any).institution ?? '',
+      course: (user as any).curso ?? (user as any).course ?? '',
+    });
 
-        // Encontrar posição do utilizador
-        const position = rankingData.findIndex((r: any) => r.name === user.name);
-        setUserRank(position >= 0 ? position + 1 : null);
-      }
+    const carregarDados = async () => {
+      try {
+        // Perfil completo com estatísticas reais (conteúdos lidos, quizzes, etc.)
+        const perfilData = await apiRequest<any>('/perfil');
+        const stats = perfilData.stats ?? {};
+        setTotalScore(Number(stats.pontuacao_total ?? 0));
+        setTotalQuizzes(Number(stats.quizzes_feitos ?? 0));
+        // Avatar
+        if (perfilData.avatar_url) setProfileImage(perfilData.avatar_url);
+      } catch { /* silencioso */ }
 
-      // Carregar dados do perfil do localStorage
-      const savedProfile = localStorage.getItem(`user_profile_${user.email}`);
-      if (savedProfile) {
-        const profile = JSON.parse(savedProfile);
-        setEditedUser({
-          name: profile.name || user.name,
-          email: profile.email || user.email,
-          province: profile.province || user.province || 'Luanda',
-          institution: profile.institution || '',
-          course: profile.course || ''
-        });
-        if (profile.avatar) {
-          setProfileImage(profile.avatar);
-        }
-      } else {
-        setEditedUser({
-          name: user.name,
-          email: user.email,
-          province: user.province || 'Luanda',
+      try {
+        // Ranking global
+        const rankingData = await apiRequest<any[]>('/ranking');
+        const mapped = rankingData.map((r: any) => ({
+          name: r.nome,
+          score: Number(r.pontuacao_total ?? 0),
+          quizzes: Number(r.quizzes_completados ?? 0),
+          province: r.provincia ?? '',
           institution: '',
-          course: ''
-        });
-      }
+        }));
+        setRanking(mapped);
+        const pos = mapped.findIndex((r: any) => r.name === (user.name ?? (user as any).nome));
+        setUserRank(pos >= 0 ? pos + 1 : null);
+      } catch { /* silencioso */ }
 
-      // Carregar artigos e tópicos salvos
-      const savedArtigos = localStorage.getItem(`user_artigos_${user.email}`);
-      if (savedArtigos) {
-        setArtigos(JSON.parse(savedArtigos));
-      }
+      try {
+        // Tópicos criados pelo utilizador
+        const topicosData = await apiRequest<any[]>('/topicos');
+        const meusTopicos = topicosData
+          .filter((t: any) => String(t.criado_por) === String((user as any).id))
+          .map((t: any) => ({
+            id: Number(t.id),
+            title: t.titulo,
+            replies: Number(t.respostas ?? 0),
+            date: new Date(t.criado_em).toLocaleDateString('pt-PT'),
+            content: t.descricao ?? '',
+            category: t.categoria ?? 'Geral',
+          }));
+        if (meusTopicos.length > 0) setTopicos(meusTopicos);
+      } catch { /* silencioso — mantém dados de exemplo */ }
+    };
 
-      const savedTopicos = localStorage.getItem(`user_topicos_${user.email}`);
-      if (savedTopicos) {
-        setTopicos(JSON.parse(savedTopicos));
-      }
-    }
-  }, [user]);
+    void carregarDados();
+  }, [user, isAuthenticated]);
 
   const getUserInitials = (name: string) => {
     const parts = name.split(' ');
@@ -245,10 +246,10 @@ export default function Profile() {
           const imageData = event.target?.result as string;
           setProfileImage(imageData);
           if (user) {
-            const savedProfile = localStorage.getItem(`user_profile_${user.email}`);
-            const profile = savedProfile ? JSON.parse(savedProfile) : {};
-            profile.avatar = imageData;
-            localStorage.setItem(`user_profile_${user.email}`, JSON.stringify(profile));
+            apiRequest('/perfil', {
+              method: 'PUT',
+              json: { avatar_url: imageData },
+            }).catch(() => null);
           }
           alert('Foto de perfil atualizada com sucesso!');
         };
@@ -267,27 +268,24 @@ export default function Profile() {
     setEditingArtigo({ ...artigo });
   };
 
-  const handleSaveArtigo = () => {
-    if (editingArtigo && user) {
-      const updatedArtigos = artigos.map(a => 
-        a.id === editingArtigo.id ? editingArtigo : a
-      );
-      setArtigos(updatedArtigos);
-      localStorage.setItem(`user_artigos_${user.email}`, JSON.stringify(updatedArtigos));
-      setEditingArtigo(null);
-      alert('Artigo atualizado com sucesso!');
-    }
+  const handleSaveArtigo = async () => {
+    if (!editingArtigo || !user) return;
+    const updatedArtigos = artigos.map(a => a.id === editingArtigo.id ? editingArtigo : a);
+    setArtigos(updatedArtigos);
+    setEditingArtigo(null);
+    // Persiste via API de artigos (best-effort)
+    apiRequest(`/artigos/id/${editingArtigo.id}`, {
+      method: 'PUT',
+      json: { titulo: editingArtigo.title, conteudo: editingArtigo.content ?? '', categoria: editingArtigo.category },
+    }).catch(() => null);
+    alert('Artigo atualizado com sucesso!');
   };
 
-  const handleDeleteArtigo = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir este artigo?')) {
-      const updatedArtigos = artigos.filter(a => a.id !== id);
-      setArtigos(updatedArtigos);
-      if (user) {
-        localStorage.setItem(`user_artigos_${user.email}`, JSON.stringify(updatedArtigos));
-      }
-      alert('Artigo excluído com sucesso!');
-    }
+  const handleDeleteArtigo = async (id: number) => {
+    if (!confirm('Tem certeza que deseja excluir este artigo?')) return;
+    setArtigos(prev => prev.filter(a => a.id !== id));
+    apiRequest(`/artigos/id/${id}`, { method: 'DELETE' }).catch(() => null);
+    alert('Artigo excluído com sucesso!');
   };
 
   // Funções para Tópicos
@@ -299,53 +297,44 @@ export default function Profile() {
     setEditingTopico({ ...topico });
   };
 
-  const handleSaveTopico = () => {
-    if (editingTopico && user) {
-      const updatedTopicos = topicos.map(t => 
-        t.id === editingTopico.id ? editingTopico : t
-      );
-      setTopicos(updatedTopicos);
-      localStorage.setItem(`user_topicos_${user.email}`, JSON.stringify(updatedTopicos));
-      setEditingTopico(null);
-      alert('Tópico atualizado com sucesso!');
-    }
+  const handleSaveTopico = async () => {
+    if (!editingTopico || !user) return;
+    const updatedTopicos = topicos.map(t => t.id === editingTopico.id ? editingTopico : t);
+    setTopicos(updatedTopicos);
+    setEditingTopico(null);
+    apiRequest(`/topicos/${editingTopico.id}`, {
+      method: 'PUT',
+      json: { titulo: editingTopico.title, descricao: editingTopico.content ?? '', categoria: editingTopico.category },
+    }).catch(() => null);
+    alert('Tópico atualizado com sucesso!');
   };
 
-  const handleDeleteTopico = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir este tópico?')) {
-      const updatedTopicos = topicos.filter(t => t.id !== id);
-      setTopicos(updatedTopicos);
-      if (user) {
-        localStorage.setItem(`user_topicos_${user.email}`, JSON.stringify(updatedTopicos));
-      }
-      alert('Tópico excluído com sucesso!');
-    }
+  const handleDeleteTopico = async (id: number) => {
+    if (!confirm('Tem certeza que deseja excluir este tópico?')) return;
+    setTopicos(prev => prev.filter(t => t.id !== id));
+    apiRequest(`/topicos/${id}`, { method: 'DELETE' }).catch(() => null);
+    alert('Tópico excluído com sucesso!');
   };
 
-  // Função para salvar edição do perfil
-  const handleSaveProfile = () => {
-    if (user) {
-      const profileData = {
-        ...editedUser,
-        avatar: profileImage
-      };
-      localStorage.setItem(`user_profile_${user.email}`, JSON.stringify(profileData));
-      
-      // Atualizar também no ranking
-      const savedRanking = localStorage.getItem('quiz_ranking');
-      if (savedRanking) {
-        const rankingData = JSON.parse(savedRanking);
-        const userIndex = rankingData.findIndex((r: any) => r.name === user.name);
-        if (userIndex >= 0) {
-          rankingData[userIndex].institution = editedUser.institution;
-          rankingData[userIndex].course = editedUser.course;
-          localStorage.setItem('quiz_ranking', JSON.stringify(rankingData));
-        }
-      }
-      
+  // Função para salvar edição do perfil via API
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    try {
+      await apiRequest('/perfil', {
+        method: 'PUT',
+        json: {
+          nome: editedUser.name,
+          provincia: editedUser.province,
+          instituicao: editedUser.institution,
+          curso: editedUser.course,
+          avatar_url: profileImage ?? undefined,
+        },
+      });
       alert('Perfil atualizado com sucesso!');
       setShowEditProfile(false);
       window.location.reload();
+    } catch {
+      alert('Não foi possível atualizar o perfil. Tenta novamente.');
     }
   };
 

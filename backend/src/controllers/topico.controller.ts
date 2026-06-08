@@ -45,14 +45,16 @@ export async function createTopico(req: Request, res: Response) {
   const {
     titulo,
     descricao,
-    criado_por,
     tipo_privacidade = 'publico',
     categoria = null,
     requires_access = false,
   } = req.body ?? {}
 
+  // Usa o utilizador autenticado pelo JWT; aceita criado_por do body como fallback legacy
+  const criado_por = req.user?.userId ?? req.body?.criado_por
+
   if (!titulo || !descricao || !criado_por) {
-    return res.status(400).json({ message: 'titulo, descricao e criado_por são obrigatórios' })
+    return res.status(400).json({ message: 'titulo, descricao são obrigatórios e deve estar autenticado' })
   }
 
   const [result] = await pool.query<ResultSetHeader>(
@@ -136,4 +138,29 @@ export async function deleteTopico(req: Request, res: Response) {
   }
 
   return res.status(204).send()
+}
+
+
+// ── POST /api/topicos/:id/solicitar-acesso ────────────────────────────────────
+export async function solicitarAcessoTopico(req: Request, res: Response) {
+  const userId   = req.user?.userId ?? req.body?.criado_por
+  const topicoId = Number(req.params.id)
+  const { motivo = null } = req.body ?? {}
+
+  if (!userId) return res.status(401).json({ message: 'Não autenticado.' })
+
+  try {
+    await pool.query(
+      `INSERT INTO topico_privado_acesso (topico_id, subscrito_id, motivo)
+       VALUES (?, ?, ?)`,
+      [topicoId, userId, motivo],
+    )
+    return res.status(201).json({ message: 'Solicitação de acesso enviada com sucesso.' })
+  } catch (err: any) {
+    if (err?.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: 'Já enviaste uma solicitação para este tópico.' })
+    }
+    console.error('solicitarAcessoTopico:', err)
+    return res.status(500).json({ message: 'Erro interno do servidor.' })
+  }
 }

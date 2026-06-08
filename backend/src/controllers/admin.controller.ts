@@ -17,6 +17,7 @@ export async function getDashboardStats(_req: Request, res: Response) {
       (SELECT COUNT(*) FROM utilizador WHERE tipo = 'subscrito')           AS total_subscritores,
       (SELECT COUNT(*) FROM conteudo)                                      AS total_conteudos,
       (SELECT COUNT(*) FROM quiz WHERE ativo = 1)                          AS total_quizzes,
+      (SELECT COUNT(*) FROM quiz_pergunta)                                 AS total_perguntas_quiz,
       (SELECT COUNT(*) FROM topico_forum)                                  AS total_topicos,
       (SELECT COUNT(*) FROM resposta_forum)                                AS total_respostas_forum,
       (SELECT COUNT(*) FROM resposta_quiz_usuario)                         AS total_tentativas_quiz,
@@ -124,10 +125,13 @@ export async function listAllConteudos(req: Request, res: Response) {
 export async function listDenuncias(_req: Request, res: Response) {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT d.*, u.nome AS denunciado_por_nome,
-            rf.conteudo AS resposta_conteudo
+            rf.conteudo   AS resposta_conteudo,
+            tf.titulo     AS topico_titulo,
+            tf.id         AS topico_id
      FROM denuncia d
      JOIN utilizador u ON u.id = d.denunciado_por
      LEFT JOIN resposta_forum rf ON rf.id = d.resposta_forum_id
+     LEFT JOIN topico_forum   tf ON tf.id = d.topico_forum_id
      WHERE d.status = 'pendente'
      ORDER BY d.id DESC`,
   )
@@ -204,4 +208,120 @@ export async function exportActivityCsv(_req: Request, res: Response) {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
   res.setHeader('Content-Disposition', 'attachment; filename="actividade.csv"')
   res.send('\uFEFF' + header + csv)
+}
+
+// ── GET /api/admin/solicitacoes ───────────────────────────────────────────────
+// Lista todas as solicitações pendentes (Jindungo + Tópicos Privados)
+export async function listSolicitacoes(_req: Request, res: Response) {
+  const [jindungo] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       s.id, 'jindungo' AS tipo,
+       s.status, s.motivo, s.solicitado_em, s.respondido_em, s.observacoes_resposta,
+       u.id   AS usuario_id,   u.nome  AS usuario_nome,  u.email AS usuario_email,
+       c.id   AS conteudo_id,  c.titulo AS conteudo_titulo
+     FROM solicitacao_acesso_jindungo s
+     JOIN utilizador u ON u.id = s.subscrito_id
+     JOIN conteudo   c ON c.id = s.conteudo_id
+     ORDER BY s.solicitado_em DESC`,
+  )
+
+  const [topicos] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       t.id, 'topico' AS tipo,
+       t.status, t.motivo, t.solicitado_em, t.respondido_em, NULL AS observacoes_resposta,
+       u.id   AS usuario_id,  u.nome  AS usuario_nome, u.email AS usuario_email,
+       tf.id  AS conteudo_id, tf.titulo AS conteudo_titulo
+     FROM topico_privado_acesso t
+     JOIN utilizador   u  ON u.id  = t.subscrito_id
+     JOIN topico_forum tf ON tf.id = t.topico_id
+     ORDER BY t.solicitado_em DESC`,
+  )
+
+  res.json({
+    jindungo: jindungo as RowDataPacket[],
+    topicos:  topicos  as RowDataPacket[],
+    total_pendentes:
+      (jindungo as RowDataPacket[]).filter(r => r['status'] === 'pendente').length +
+      (topicos  as RowDataPacket[]).filter(r => r['status'] === 'pendente').length,
+  })
+}
+
+// ── PATCH /api/admin/solicitacoes/jindungo/:id ────────────────────────────────
+export async function responderSolicitacaoJindungo(req: Request, res: Response) {
+  const adminId = req.user!.userId
+  const { status, observacoes = null } = req.body ?? {}
+
+  if (!['aprovado', 'rejeitado'].includes(status)) {
+    return res.status(400).json({ message: 'status deve ser: aprovado ou rejeitado.' })
+  }
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    'SELECT * FROM solicitacao_acesso_jindungo WHERE id = ? LIMIT 1',
+    [req.params['id']],
+  )
+  const sol = (rows as RowDataPacket[])[0]
+  if (!sol) return res.status(404).json({ message: 'Solicitação não encontrada.' })
+
+  await pool.query(
+    `UPDATE solicitacao_acesso_jindungo
+     SET status = ?, admin_responsavel = ?, observacoes_resposta = ?, respondido_em = NOW()
+     WHERE id = ?`,
+    [status, adminId, observacoes, req.params['id']],
+  )
+
+  // Notifica o utilizador
+  if (status === 'aprovado') {
+    const [conteudo] = await pool.query<RowDataPacket[]>(
+      'SELECT titulo FROM conteudo WHERE id = ? LIMIT 1', [sol['conteudo_id']],
+    )
+    const titulo = (conteudo as RowDataPacket[])[0]?.['titulo'] ?? 'conteúdo'
+    await pool.query(
+      `INSERT INTO notificacao (usuario_id, tipo, entidade_id, titulo, mensagem, link_destino)
+       VALUES (?, 'acesso_jindungo_aprovado', ?, 'Acesso aprovado', ?, '/explorar')`,
+      [sol['subscrito_id'], sol['conteudo_id'], `O teu pedido de acesso a "${titulo}" foi aprovado.`],
+    )
+  }
+
+  res.json({ message: `Solicitação Jindungo ${status}.` })
+}
+
+// ── PATCH /api/admin/solicitacoes/topico/:id ──────────────────────────────────
+export async function responderSolicitacaoTopico(req: Request, res: Response) {
+  const adminId = req.user!.userId
+  const { status } = req.body ?? {}
+
+  if (!['aprovado', 'rejeitado'].includes(status)) {
+    return res.status(400).json({ message: 'status deve ser: aprovado ou rejeitado.' })
+  }
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    'SELECT * FROM topico_privado_acesso WHERE id = ? LIMIT 1',
+    [req.params['id']],
+  )
+  const sol = (rows as RowDataPacket[])[0]
+  if (!sol) return res.status(404).json({ message: 'Solicitação não encontrada.' })
+
+  await pool.query(
+    `UPDATE topico_privado_acesso
+     SET status = ?, admin_responsavel = ?, respondido_em = NOW()
+     WHERE id = ?`,
+    [status, adminId, req.params['id']],
+  )
+
+  // Notifica o utilizador
+  if (status === 'aprovado') {
+    const [topico] = await pool.query<RowDataPacket[]>(
+      'SELECT titulo FROM topico_forum WHERE id = ? LIMIT 1', [sol['topico_id']],
+    )
+    const titulo = (topico as RowDataPacket[])[0]?.['titulo'] ?? 'tópico'
+    await pool.query(
+      `INSERT INTO notificacao (usuario_id, tipo, entidade_id, titulo, mensagem, link_destino)
+       VALUES (?, 'acesso_topico_aprovado', ?, 'Acesso ao tópico aprovado', ?, ?)`,
+      [sol['subscrito_id'], sol['topico_id'],
+       `O teu pedido de acesso ao tópico "${titulo}" foi aprovado.`,
+       `/forum/${sol['topico_id']}`],
+    )
+  }
+
+  res.json({ message: `Solicitação de tópico ${status}.` })
 }

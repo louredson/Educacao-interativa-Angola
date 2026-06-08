@@ -129,6 +129,29 @@ export async function likeResposta(req: Request, res: Response) {
   return res.json({ liked, likes: (updated as RowDataPacket[])[0]?.['likes'] ?? 0 })
 }
 
+// ── POST /api/topicos/:id/denunciar ───────────────────────────────────────────
+export async function denunciarTopico(req: Request, res: Response) {
+  const { motivo = null, descricao_detalhada = null } = req.body ?? {}
+
+  // Verifica se o tópico existe
+  const [rows] = await pool.query<RowDataPacket[]>(
+    'SELECT id FROM topico_forum WHERE id = ? LIMIT 1',
+    [req.params.id],
+  )
+  if (!(rows as RowDataPacket[]).length) {
+    return res.status(404).json({ message: 'Tópico não encontrado.' })
+  }
+
+  // INSERT IGNORE → só uma denúncia por utilizador por tópico
+  await pool.query(
+    `INSERT IGNORE INTO denuncia (topico_forum_id, denunciado_por, motivo, descricao_detalhada)
+     VALUES (?, ?, ?, ?)`,
+    [req.params.id, req.user!.userId, motivo, descricao_detalhada],
+  )
+
+  return res.json({ message: 'Denúncia registada. A equipa de moderação irá analisar.' })
+}
+
 // ── PATCH /api/respostas/:id/denunciar ────────────────────────────────────────
 export async function denunciarResposta(req: Request, res: Response) {
   const { motivo = null, descricao_detalhada = null } = req.body ?? {}

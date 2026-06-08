@@ -7,10 +7,22 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import HeroCarousel from '../components/HeroCarousel'
+import { apiRequest } from '../services/api'
 
 export default function Home() {
   const [tooltip, setTooltip] = useState({ visible: false, content: '', x: 0, y: 0 })
   const [openFaqs, setOpenFaqs] = useState<number[]>([])
+  const [platformStats, setPlatformStats] = useState({
+    total_conteudos: 0,
+    total_perguntas_quiz: 0,
+    total_topicos: 0,
+  })
+
+  useEffect(() => {
+    apiRequest<any>('/admin/stats')
+      .then(data => { if (data) setPlatformStats(data) })
+      .catch(() => { /* usa valores 0 se falhar */ })
+  }, [])
 
   const toggleFaq = (index: number) => {
     setOpenFaqs(prev => 
@@ -70,6 +82,8 @@ export default function Home() {
     }
   }, [])
 
+  const fmt = (n: number) => n > 0 ? `${n}+` : '…'
+
   const features = [
     {
       icon: Compass,
@@ -78,7 +92,7 @@ export default function Home() {
       link: '/explorar',
       color: 'from-yellow-500 to-yellow-600',
       bgGlow: 'from-yellow-500/20 to-transparent',
-      stat: '200+ Conteúdos',
+      stat: fmt(platformStats.total_conteudos) + ' Conteúdos',
     },
     {
       icon: MapPin,
@@ -87,7 +101,7 @@ export default function Home() {
       link: '/resources',
       color: 'from-blue-500 to-blue-600',
       bgGlow: 'from-blue-500/20 to-transparent',
-      stat: '50+ Visualizações',
+      stat: fmt(platformStats.total_perguntas_quiz) + ' Questões',
     },
     {
       icon: MessageSquare,
@@ -96,15 +110,15 @@ export default function Home() {
       link: '/forum',
       color: 'from-green-500 to-green-600',
       bgGlow: 'from-green-500/20 to-transparent',
-      stat: '60+ Debates',
+      stat: fmt(platformStats.total_topicos) + ' Debates',
     },
   ]
 
   const statsData = [
-    { value: '50+', label: 'Conteúdos para Explorar', icon: BookOpen },
-    { value: '100+', label: 'Questões de Quiz', icon: GraduationCap },
-    { value: '60+', label: 'Debates Temáticos', icon: MessageSquare },
-    { value: '3+', label: 'Rankings Disponíveis', icon: Award },
+    { value: fmt(platformStats.total_conteudos),      label: 'Conteúdos para Explorar', icon: BookOpen },
+    { value: fmt(platformStats.total_perguntas_quiz), label: 'Questões de Quiz',         icon: GraduationCap },
+    { value: fmt(platformStats.total_topicos),        label: 'Debates Temáticos',        icon: MessageSquare },
+    { value: '3+',                                     label: 'Rankings Disponíveis',     icon: Award },
   ]
 
   const faqs = [

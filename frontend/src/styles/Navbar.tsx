@@ -5,6 +5,7 @@ import {
   Bell,
   ChevronDown,
   Compass,
+  FileText,
   Home,
   HelpCircle,
   LayoutDashboard,
@@ -17,10 +18,11 @@ import {
 import { useAuth } from '../app/contexts/AuthContext'
 
 const navLinks = [
-  { label: 'Início', href: '/', icon: Home },
+  { label: 'Início',   href: '/',         icon: Home },
   { label: 'Explorar', href: '/explorar', icon: Compass },
-  { label: 'Quizes', href: '/resources', icon: HelpCircle },
-  { label: 'Debate', href: '/forum', icon: MessageSquare },
+  { label: 'Artigos',  href: '/artigos',  icon: FileText },
+  { label: 'Quizes',   href: '/resources', icon: HelpCircle },
+  { label: 'Debate',   href: '/forum',     icon: MessageSquare },
 ]
 
 export default function Navbar() {

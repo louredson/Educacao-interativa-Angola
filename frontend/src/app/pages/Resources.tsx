@@ -5,6 +5,7 @@ import { Progress } from '../components/ui/progress';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import AuthPrompt from '../components/AuthPrompt';
+import { apiRequest } from '../services/api';
 
 export default function Resources() {
   const { user, isAuthenticated } = useAuth();
@@ -26,6 +27,51 @@ export default function Resources() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
+
+  // ── Quizzes carregados da API ──────────────────────────────────────────────
+  const [apiQuizzes, setApiQuizzes] = useState<any[]>([]);
+  const [loadingQuizzes, setLoadingQuizzes] = useState(true);
+  // Quiz em execução via API (perguntas reais da BD)
+  const [activeApiQuizId, setActiveApiQuizId] = useState<number | null>(null);
+  const [apiQuizData, setApiQuizData] = useState<any>(null);
+  const [apiAnswers, setApiAnswers] = useState<{pergunta_id: number; resposta_escolhida: number}[]>([]);
+
+  useEffect(() => {
+    const carregarQuizzes = async () => {
+      try {
+        const data = await apiRequest<any[]>('/quizzes');
+        setApiQuizzes(data ?? []);
+      } catch { /* silencioso */ }
+      finally { setLoadingQuizzes(false); }
+    };
+    void carregarQuizzes();
+  }, []);
+
+  useEffect(() => {
+    const carregarRanking = async () => {
+      try {
+        const rankingData = await apiRequest<any[]>('/ranking');
+        const mapped = (rankingData ?? []).map((r: any) => ({
+          name: r.nome,
+          score: Number(r.pontuacao_total ?? 0),
+          quizzes: Number(r.quizzes_completados ?? 0),
+          province: r.provincia ?? '',
+          institution: '',
+        }));
+        setRanking(mapped);
+        if (user) {
+          const pos = mapped.findIndex((r: any) =>
+            r.name === ((user as any).nome ?? user.name)
+          );
+          if (pos >= 0) {
+            setTotalScore(mapped[pos].score);
+            setTotalQuizzes(mapped[pos].quizzes);
+          }
+        }
+      } catch { /* silencioso */ }
+    };
+    void carregarRanking();
+  }, [user]);
 
   const provinces = [
     'Todas', 'Luanda', 'Benguela', 'Huambo', 'Cabinda', 'Huíla', 'Lunda Norte', 
@@ -55,25 +101,7 @@ export default function Resources() {
     'Instituto Superior de Tecnologias de Informação e Comunicação'
   ];
 
-  // Load user stats from localStorage
-  useEffect(() => {
-    if (user) {
-      const savedStats = localStorage.getItem(`quiz_stats_${user.email}`);
-      if (savedStats) {
-        const stats = JSON.parse(savedStats);
-        setTotalScore(stats.totalScore || 0);
-        setTotalQuizzes(stats.totalQuizzes || 0);
-      }
-    }
-    loadRanking();
-  }, [user]);
-
-  const loadRanking = () => {
-    const savedRanking = localStorage.getItem('quiz_ranking');
-    if (savedRanking) {
-      setRanking(JSON.parse(savedRanking));
-    }
-  };
+  const loadRanking = () => { /* ranking via API no useEffect acima */ };
 
   // Função para tocar sons usando Web Audio API
   const playSound = (type) => {
@@ -135,13 +163,19 @@ export default function Resources() {
     }
   };
 
-  // Timer effect
+  // Timer effect — funciona para quizzes locais E quizzes da API
   useEffect(() => {
-    if (activeQuiz && !showResult && selectedAnswer === null) {
+    const quizActivo = (activeQuiz || activeApiQuizId) && !showResult && selectedAnswer === null;
+    if (quizActivo) {
       timerRef.current = setInterval(() => {
         setTimeRemaining((prev) => {
           if (prev <= 1) {
-            handleAnswer(-1);
+            // Timeout — chama o handler correcto
+            if (activeApiQuizId) {
+              handleApiAnswer(-1);
+            } else {
+              handleAnswer(-1);
+            }
             return 30;
           }
           if (prev <= 5) {
@@ -157,39 +191,32 @@ export default function Resources() {
         }
       };
     }
-  }, [activeQuiz, showResult, selectedAnswer, currentQuestion]);
+  }, [activeQuiz, activeApiQuizId, showResult, selectedAnswer, currentQuestion]);
 
-  const updateRanking = (userName, newScore) => {
-    const currentRanking = [...ranking];
-    const userIndex = currentRanking.findIndex(r => r.name === userName);
-    
-    if (userIndex >= 0) {
-      currentRanking[userIndex].score += newScore;
-      currentRanking[userIndex].quizzes += 1;
-    } else {
-      currentRanking.push({
-        name: userName,
-        score: newScore,
-        quizzes: 1,
-        province: user ? user.province : 'Luanda',
-        institution: user ? user.institution : 'ISPTEC'
-      });
-    }
-    
-    currentRanking.sort((a, b) => b.score - a.score);
-    setRanking(currentRanking);
-    localStorage.setItem('quiz_ranking', JSON.stringify(currentRanking));
+  const updateRanking = () => {
+    // Recarrega ranking da API após tentativa
+    apiRequest<any[]>('/ranking').then((rankingData) => {
+      const mapped = (rankingData ?? []).map((r: any) => ({
+        name: r.nome,
+        score: Number(r.pontuacao_total ?? 0),
+        quizzes: Number(r.quizzes_completados ?? 0),
+        province: r.provincia ?? '',
+        institution: '',
+      }));
+      setRanking(mapped);
+      if (user) {
+        const pos = mapped.findIndex((r: any) =>
+          r.name === ((user as any).nome ?? user.name)
+        );
+        if (pos >= 0) {
+          setTotalScore(mapped[pos].score);
+          setTotalQuizzes(mapped[pos].quizzes);
+        }
+      }
+    }).catch(() => null);
   };
 
-  const saveUserStats = (newTotalScore, newTotalQuizzes) => {
-    if (user) {
-      const stats = {
-        totalScore: newTotalScore,
-        totalQuizzes: newTotalQuizzes
-      };
-      localStorage.setItem(`quiz_stats_${user.email}`, JSON.stringify(stats));
-    }
-  };
+  const saveUserStats = () => { /* estatísticas via API */ };
 
   const quizzes = {
     economia: {
@@ -928,6 +955,76 @@ export default function Resources() {
     setTimeRemaining(30);
   };
 
+  // Inicia quiz carregado da API
+  const startApiQuiz = async (quizId: number) => {
+    if (!isAuthenticated) {
+      setAuthAction('participar de quizzes e ganhar pontos');
+      setShowAuthPrompt(true);
+      return;
+    }
+    try {
+      const data = await apiRequest<any>(`/quizzes/${quizId}`);
+      if (!data.perguntas || data.perguntas.length === 0) {
+        alert('Este quiz ainda não tem perguntas. Aguarda que o administrador as adicione.');
+        return;
+      }
+      setApiQuizData(data);
+      setActiveApiQuizId(quizId);
+      setApiAnswers([]);
+      setCurrentQuestion(0);
+      setScore(0);
+      setSelectedAnswer(null);
+      setShowResult(false);
+      setTimeRemaining(30);
+    } catch {
+      alert('Não foi possível carregar o quiz. Tenta novamente.');
+    }
+  };
+
+  // Responde pergunta num quiz da API
+  const handleApiAnswer = (opcaoIndex: number) => {
+    if (selectedAnswer !== null || !apiQuizData) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+    setSelectedAnswer(opcaoIndex);
+
+    const pergunta = apiQuizData.perguntas[currentQuestion];
+    // opcaoIndex é 0-based (posição no array); resposta_correta é 1-based (1=A,2=B,3=C,4=D)
+    const respostaEscolhida1Based = opcaoIndex === -1 ? 0 : opcaoIndex + 1;
+    const correta = opcaoIndex !== -1 && respostaEscolhida1Based === pergunta.resposta_correta;
+    if (opcaoIndex === -1) { playSound('incorrect'); }
+    else if (correta) { playSound('correct'); setScore(s => s + 10); }
+    else { playSound('incorrect'); }
+
+    // Guarda resposta em formato 1-based para a API
+    const respostaEscolhida = respostaEscolhida1Based;
+    setApiAnswers(prev => [...prev, { pergunta_id: pergunta.id, resposta_escolhida: respostaEscolhida }]);
+
+    setTimeout(async () => {
+      if (currentQuestion + 1 < apiQuizData.perguntas.length) {
+        setCurrentQuestion(q => q + 1);
+        setSelectedAnswer(null);
+        setTimeRemaining(30);
+      } else {
+        // Última pergunta — envia tudo para a API
+        const finalAnswers = [...apiAnswers, { pergunta_id: pergunta.id, resposta_escolhida: respostaEscolhida }];
+        setShowResult(true);
+        playSound('complete');
+        try {
+          await apiRequest(`/quizzes/${activeApiQuizId}/attempt`, {
+            method: 'POST',
+            json: { respostas: finalAnswers },
+          });
+          updateRanking();
+        } catch (err: any) {
+          if (err?.status === 429) {
+            alert('Já realizaste este quiz hoje. Tenta amanhã!');
+          }
+        }
+        setTotalQuizzes(q => q + 1);
+      }
+    }, 1500);
+  };
+
   const handleAnswer = (answerIndex) => {
     if (selectedAnswer !== null) return;
 
@@ -962,8 +1059,8 @@ export default function Resources() {
         setTotalScore(totalScore + finalScore);
         playSound('complete');
         if (user) {
-          updateRanking(user.name, finalScore);
-          saveUserStats(totalScore + finalScore, totalQuizzes + 1);
+          updateRanking();
+          saveUserStats();
         }
       }
     }, 1500);
@@ -979,6 +1076,220 @@ export default function Resources() {
     setShowResult(false);
     setTimeRemaining(30);
   };
+
+  // ── Render: Quiz da API em execução ────────────────────────────────────────
+  if (activeApiQuizId && apiQuizData && !showResult) {
+    const pergunta = apiQuizData.perguntas[currentQuestion];
+    const totalPerguntas = apiQuizData.perguntas.length;
+    const timePercentage = (timeRemaining / 30) * 100;
+    const isTimeWarning  = timeRemaining <= 10;
+    const isTimeCritical = timeRemaining <= 5;
+    const opcoes = [pergunta.opcao_a, pergunta.opcao_b, pergunta.opcao_c, pergunta.opcao_d];
+
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+        <section className="bg-gradient-to-r from-red-600 via-red-700 to-red-800 text-white">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <GraduationCap className="w-8 h-8" />
+                <h2 className="text-3xl font-bold">{apiQuizData?.titulo ?? 'Quiz'}</h2>
+              </div>
+              <button
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                title={soundEnabled ? 'Desativar som' : 'Ativar som'}
+              >
+                <Volume2 className={`w-5 h-5 ${!soundEnabled ? 'opacity-50' : ''}`} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 text-sm mb-4">
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
+                <div className="text-xs opacity-75 mb-1">Pergunta</div>
+                <div className="font-bold">{currentQuestion + 1} / {totalPerguntas}</div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
+                <div className="text-xs opacity-75 mb-1">Pontuação</div>
+                <div className="font-bold">{score} pts</div>
+              </div>
+              <div className={`backdrop-blur-sm rounded-lg p-3 ${
+                isTimeCritical ? 'bg-red-500/30 animate-pulse' :
+                isTimeWarning  ? 'bg-yellow-500/30' :
+                'bg-white/10'
+              }`}>
+                <div className="text-xs opacity-75 mb-1 flex items-center gap-1">
+                  <Timer className="w-3 h-3" />Tempo
+                </div>
+                <div className={`font-bold ${isTimeCritical ? 'text-red-200' : isTimeWarning ? 'text-yellow-200' : ''}`}>
+                  {timeRemaining}s
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <div className="text-xs opacity-75 mb-2">Progresso do Quiz</div>
+              <div className="bg-white/20 rounded-full h-2">
+                <div
+                  className="bg-white h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${((currentQuestion + 1) / totalPerguntas) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs opacity-75 mb-2">Tempo Restante</div>
+              <div className="bg-white/20 rounded-full h-3 overflow-hidden">
+                <div
+                  className={`h-3 rounded-full transition-all duration-1000 ${
+                    isTimeCritical ? 'bg-red-400' :
+                    isTimeWarning  ? 'bg-yellow-400' :
+                    'bg-green-400'
+                  }`}
+                  style={{ width: `${timePercentage}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          {selectedAnswer === -1 && (
+            <div className="mb-6 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
+              <div className="flex items-center gap-3 text-red-700">
+                <Timer className="w-6 h-6" />
+                <div>
+                  <p className="font-bold">Tempo Esgotado!</p>
+                  <p className="text-sm">Não respondeste a tempo. A pergunta foi marcada como incorreta.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-2xl">{pergunta.pergunta}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {opcoes.map((opcao, index) => {
+                const isSelected   = selectedAnswer === index;
+                // resposta_correta é 1-based; index é 0-based → converter
+                const isCorreta    = (index + 1) === pergunta.resposta_correta;
+                const showCorrect  = selectedAnswer !== null && isCorreta;
+                const showWrong    = selectedAnswer !== null && isSelected && !isCorreta;
+
+                return (
+                  <button
+                    key={index}
+                    onClick={() => handleApiAnswer(index)}
+                    disabled={selectedAnswer !== null}
+                    className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                      showCorrect ? 'border-green-500 bg-green-50' :
+                      showWrong   ? 'border-red-500 bg-red-50' :
+                      isSelected  ? 'bg-red-50 border-red-300' :
+                      'border-slate-200 hover:border-red-300 hover:bg-red-50/30'
+                    } ${selectedAnswer !== null ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600 flex-shrink-0">
+                          {['A','B','C','D'][index]}
+                        </span>
+                        <span>{opcao}</span>
+                      </div>
+                      {showCorrect && <Check className="w-5 h-5 text-green-600 flex-shrink-0" />}
+                      {showWrong   && <X     className="w-5 h-5 text-red-600 flex-shrink-0" />}
+                    </div>
+                  </button>
+                );
+              })}
+
+              {selectedAnswer !== null && pergunta.explicacao && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800 font-medium mb-1">💡 Explicação</p>
+                  <p className="text-sm text-blue-700">{pergunta.explicacao}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <button
+            onClick={() => {
+              setActiveApiQuizId(null);
+              setApiQuizData(null);
+              setApiAnswers([]);
+              resetQuiz();
+            }}
+            className="mt-6 px-6 py-2 border-2 border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            Cancelar Quiz
+          </button>
+        </section>
+      </div>
+    );
+  }
+
+  // ── Render: Resultado do Quiz da API ──────────────────────────────────────
+  if (showResult && activeApiQuizId && apiQuizData) {
+    const totalPerguntas = apiQuizData.perguntas.length;
+    const percentage     = totalPerguntas > 0 ? Math.round((score / (totalPerguntas * 10)) * 100) : 0;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+        <section className="bg-gradient-to-r from-red-600 to-red-800 text-white py-16">
+          <div className="max-w-4xl mx-auto px-4 text-center">
+            <div className="text-6xl mb-4">
+              {percentage >= 80 ? '🏆' : percentage >= 60 ? '🎯' : percentage >= 40 ? '📚' : '💪'}
+            </div>
+            <h2 className="text-4xl font-bold mb-2">Quiz Concluído!</h2>
+            <p className="text-red-100 text-lg">{apiQuizData?.titulo}</p>
+          </div>
+        </section>
+
+        <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid grid-cols-3 gap-6 mb-8">
+            <Card className="text-center p-6">
+              <div className="text-4xl font-bold text-red-600 mb-1">{score}</div>
+              <div className="text-sm text-slate-500">Pontuação</div>
+            </Card>
+            <Card className="text-center p-6">
+              <div className="text-4xl font-bold text-green-600 mb-1">{percentage}%</div>
+              <div className="text-sm text-slate-500">Acertos</div>
+            </Card>
+            <Card className="text-center p-6">
+              <div className="text-4xl font-bold text-blue-600 mb-1">{totalPerguntas}</div>
+              <div className="text-sm text-slate-500">Perguntas</div>
+            </Card>
+          </div>
+
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => {
+                setActiveApiQuizId(null);
+                setApiQuizData(null);
+                setApiAnswers([]);
+                resetQuiz();
+              }}
+              className="px-8 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
+            >
+              Tentar Novamente
+            </button>
+            <button
+              onClick={() => {
+                setActiveApiQuizId(null);
+                setApiQuizData(null);
+                setApiAnswers([]);
+                resetQuiz();
+              }}
+              className="px-8 py-3 border-2 border-slate-300 rounded-lg hover:bg-slate-50 transition-colors font-semibold"
+            >
+              Voltar aos Quizzes
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   if (activeQuiz && !showResult) {
     const currentQuiz = quizzes[activeQuiz];
@@ -1243,6 +1554,57 @@ export default function Resources() {
           </div>
         )}
 
+        {/* ── Quizzes da Base de Dados ─────────────────────────────────── */}
+        {loadingQuizzes ? (
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1,2].map(i => <Card key={i}><CardContent className="p-6"><div className="h-32 bg-slate-100 rounded animate-pulse" /></CardContent></Card>)}
+          </div>
+        ) : apiQuizzes.length > 0 ? (
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-yellow-600" /> Quizzes Disponíveis
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              {apiQuizzes.filter(q => q.ativo).map((quiz: any) => (
+                <Card key={quiz.id} className="hover:shadow-lg transition-shadow group overflow-hidden flex flex-col h-full">
+                  {quiz.thumbnail_filename && (
+                    <div className="w-full h-48 overflow-hidden flex-shrink-0">
+                      <img src={quiz.thumbnail_filename} alt={quiz.titulo} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                    </div>
+                  )}
+                  <CardHeader className="flex-shrink-0">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-red-100 to-yellow-100">
+                        <GraduationCap className="w-6 h-6 text-red-600" />
+                      </div>
+                      <CardTitle className="text-base">{quiz.titulo}</CardTitle>
+                    </div>
+                    <CardDescription>{quiz.descricao ?? ''}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-grow flex flex-col">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">{quiz.categoria ?? 'Geral'}</span>
+                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full">{quiz.total_perguntas ?? 0} perguntas</span>
+                    </div>
+                    <button
+                      onClick={() => startApiQuiz(quiz.id)}
+                      className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 mt-auto"
+                    >
+                      {!isAuthenticated && <Lock className="w-4 h-4" />}
+                      Começar Quiz
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* ── Quizzes Locais (exemplos) ─────────────────────────────────── */}
+        <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <GraduationCap className="w-5 h-5 text-red-600" /> Quizzes de Exemplo
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {Object.entries(quizzes).map(([key, quiz]) => (
             <Card key={key} className="hover:shadow-lg transition-shadow group overflow-hidden flex flex-col h-full">

@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiRequest } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Search,
   Filter,
@@ -217,6 +219,9 @@ interface LivroComentario {
 
 export default function Explorar() {
   // Estados existentes
+  const { user, isAuthenticated } = useAuth();
+  const [apiContents, setApiContents] = useState<Content[]>([]);
+  const [loadingContents, setLoadingContents] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
@@ -550,11 +555,50 @@ Após o fim da guerra em 2002, o governo implementou várias medidas de estabili
     },
   ];
 
+  // Carrega conteúdos da API ao montar o componente
+  useEffect(() => {
+    const carregarConteudos = async () => {
+      try {
+        const dados = await apiRequest<any[]>("/conteudos");
+        if (dados && dados.length > 0) {
+          const mapeados: Content[] = dados.map((c: any) => ({
+            id: String(c.id),
+            title: c.titulo ?? "",
+            description: c.descricao ?? "",
+            category: (c.categoria ?? "geral").toLowerCase(),
+            type: c.tipo ?? "texto_normal",
+            duration: c.duracao ?? "",
+            level: "iniciante",
+            views: 0,
+            rating: 0,
+            author: c.publicado_por ? String(c.publicado_por) : "Redação",
+            date: new Date(c.publicado_em).toLocaleDateString("pt-PT"),
+            tags: c.tema ? [c.tema] : [],
+            requiresAccess: c.tipo === "texto_jindungo",
+            imageColor: "from-red-500 to-red-700",
+            imageIcon: null,
+            thumbnail: c.imagem_filename ?? undefined,
+            content: c.conteudo_completo ?? c.descricao ?? "",
+          }));
+          setApiContents(mapeados);
+        }
+      } catch {
+        // Usa conteúdos estáticos como fallback
+      } finally {
+        setLoadingContents(false);
+      }
+    };
+    void carregarConteudos();
+  }, []);
+
+  // Usa conteúdos da API se disponíveis, senão os estáticos
+  const activeContents = apiContents.length > 0 ? apiContents : contents;
+
   const categories = [
-    { id: "all", label: "Todos", icon: Globe, count: contents.length },
-    { id: "historia", label: "História", icon: Landmark, count: contents.filter((c) => c.category === "historia").length },
-    { id: "economia", label: "Economia", icon: TrendingUp, count: contents.filter((c) => c.category === "economia").length },
-    { id: "cultura", label: "Cultura", icon: Users, count: contents.filter((c) => c.category === "cultura").length },
+    { id: "all", label: "Todos", icon: Globe, count: activeContents.length },
+    { id: "historia", label: "História", icon: Landmark, count: activeContents.filter((c) => c.category === "historia").length },
+    { id: "economia", label: "Economia", icon: TrendingUp, count: activeContents.filter((c) => c.category === "economia").length },
+    { id: "cultura", label: "Cultura", icon: Users, count: activeContents.filter((c) => c.category === "cultura").length },
   ];
 
   const contentTypes = [
@@ -646,8 +690,16 @@ Após o fim da guerra em 2002, o governo implementou várias medidas de estabili
     setReportDescription("");
   };
 
-  const handleSave = (contentId: string) => {
-    setSavedContents((prev) => ({ ...prev, [contentId]: !prev[contentId] }));
+  const handleSave = async (contentId: string) => {
+    const isSaved = savedContents[contentId];
+    setSavedContents((prev) => ({ ...prev, [contentId]: !isSaved }));
+    try {
+      if (isSaved) {
+        await apiRequest(`/conteudos/${contentId}/favoritar`, { method: "DELETE" });
+      } else {
+        await apiRequest(`/conteudos/${contentId}/favoritar`, { method: "POST" });
+      }
+    } catch { /* best-effort */ }
   };
 
   const handlePodcastFavorite = (contentId: string) => {
@@ -673,12 +725,25 @@ Após o fim da guerra em 2002, o governo implementou várias medidas de estabili
     setIsAccessModalOpen(true);
   };
 
-  const handleSubmitAccess = () => {
-    console.log("Solicitação de acesso para:", selectedContent?.title, "Motivo:", accessReason);
-    alert(`Solicitação enviada para "${selectedContent?.title}"!\n\nMotivo: ${accessReason || "Não informado"}\n\nA solicitação será analisada em breve.`);
-    setIsAccessModalOpen(false);
-    setAccessReason("");
-    setSelectedContent(null);
+  const handleSubmitAccess = async () => {
+    if (!selectedContent) return;
+    try {
+      await apiRequest(`/conteudos/${selectedContent.id}/solicitar-acesso`, {
+        method: "POST",
+        json: { motivo: accessReason || "Sem motivo informado" },
+      });
+      alert(`Solicitação enviada para "${selectedContent.title}"! A solicitação será analisada em breve.`);
+    } catch (err: any) {
+      if (err?.status === 409) {
+        alert("Já enviaste uma solicitação para este conteúdo.");
+      } else {
+        alert("Não foi possível enviar a solicitação. Tenta novamente.");
+      }
+    } finally {
+      setIsAccessModalOpen(false);
+      setAccessReason("");
+      setSelectedContent(null);
+    }
   };
 
   const handleAddContent = () => {
@@ -752,18 +817,25 @@ Após o fim da guerra em 2002, o governo implementou várias medidas de estabili
     setLikedComments((prev) => ({ ...prev, [commentId]: !prev[commentId] }));
   };
 
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      const comment: Comment = {
-        id: String(Date.now()),
-        author: "Ana Fernandes",
-        avatar: "AF",
-        text: newComment,
-        time: "Agora mesmo",
-        likes: 0,
-      };
-      setComments([comment, ...comments]);
-      setNewComment("");
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+    const conteudoId = videoContent?.id ?? textContent?.id ?? podcastContent?.id;
+    const comment: Comment = {
+      id: String(Date.now()),
+      author: user?.name ?? "Utilizador",
+      avatar: (user?.name ?? "U").split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase(),
+      text: newComment,
+      time: "Agora mesmo",
+      likes: 0,
+    };
+    setComments([comment, ...comments]);
+    setNewComment("");
+    // Persiste na API (best-effort)
+    if (conteudoId) {
+      apiRequest(`/conteudos/${conteudoId}/comentarios`, {
+        method: "POST",
+        json: { comentario: newComment.trim() },
+      }).catch(() => null);
     }
   };
 

@@ -170,3 +170,28 @@ export async function deleteConteudo(req: Request, res: Response) {
 
   return res.status(204).send()
 }
+
+
+// ── POST /api/conteudos/:id/solicitar-acesso ──────────────────────────────────
+export async function solicitarAcessoJindungo(req: Request, res: Response) {
+  const userId     = (req as any).user?.userId
+  const conteudoId = Number(req.params.id)
+  const { motivo = null } = req.body ?? {}
+
+  if (!userId) return res.status(401).json({ message: 'Não autenticado.' })
+
+  try {
+    await pool.query(
+      `INSERT INTO solicitacao_acesso_jindungo (subscrito_id, conteudo_id, motivo)
+       VALUES (?, ?, ?)`,
+      [userId, conteudoId, motivo],
+    )
+    return res.status(201).json({ message: 'Solicitação enviada. Aguarda aprovação do administrador.' })
+  } catch (err: any) {
+    if (err?.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: 'Já enviaste uma solicitação para este conteúdo.' })
+    }
+    console.error('solicitarAcessoJindungo:', err)
+    return res.status(500).json({ message: 'Erro interno do servidor.' })
+  }
+}
