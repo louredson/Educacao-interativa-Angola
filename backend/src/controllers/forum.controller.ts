@@ -6,18 +6,38 @@ import type { Request, Response } from 'express'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 import { pool } from '../config/database.js'
 import { checkDiscussionAchievements } from '../services/achievement.service.js'
+import { registarVoto } from '../services/forumVote.service.js'
 
 // ── GET /api/topicos/:id/respostas ───────────────────────────────────────────
 export async function listRespostas(req: Request, res: Response) {
+  const userId = req.user!.userId
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT r.*, u.nome AS autor_nome, u.avatar_url AS autor_avatar, u.tipo AS autor_tipo
+    `SELECT r.*, u.nome AS autor_nome, u.avatar_url AS autor_avatar, u.tipo AS autor_tipo,
+            vr.valor AS meu_voto
      FROM resposta_forum r
      JOIN utilizador u ON u.id = r.autor_id
+     LEFT JOIN voto_resposta vr ON vr.resposta_id = r.id AND vr.utilizador_id = ?
      WHERE r.topico_id = ? AND r.denunciado = 0
-     ORDER BY r.resposta_pai_id IS NOT NULL, r.publicado_em ASC`,
-    [req.params.id],
+     ORDER BY r.resposta_pai_id IS NOT NULL, r.votos DESC, r.publicado_em ASC`,
+    [userId, req.params.id],
   )
   res.json(rows)
+}
+
+// ── POST /api/respostas/:id/votar ─────────────────────────────────────────────
+// body: { valor: 1 | -1 }. Idempotente (toggle) via forumVote.service.
+export async function votarResposta(req: Request, res: Response) {
+  const userId     = req.user!.userId
+  const respostaId = Number(req.params.id)
+  try {
+    const resultado = await registarVoto(
+      { votoTabela: 'voto_resposta', idColuna: 'resposta_id', alvoTabela: 'resposta_forum' },
+      respostaId, userId, Number(req.body?.valor),
+    )
+    return res.json(resultado)
+  } catch (err) {
+    return res.status(400).json({ message: (err as Error).message })
+  }
 }
 
 // ── POST /api/topicos/:id/respostas ──────────────────────────────────────────

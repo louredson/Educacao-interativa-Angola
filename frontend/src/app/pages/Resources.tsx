@@ -1,4 +1,5 @@
-import { MapPin, TrendingUp, BarChart3, PieChart, ArrowRight, Check, X, Trophy, Medal, Award, Filter, Lock, Timer, Volume2, Landmark, Banknote, Factory, Building, Wheat, Globe, Heart, Scale, GraduationCap, ShoppingBag, Truck, Coins, Target, Users, Leaf, Sun, Cloud, Droplets, Mountain, Waves, Gem, Pickaxe, Ship, Plane, Train, Car, Bike, Bus, Home, Utensils, Wifi, Phone, Laptop, Smartphone, Tv, Watch, Camera, Video, Music, Book, Pen, Scissors, Shirt, Shoe, Ring, Gift, Cake, Coffee, Beer, Wine, Pizza, Burger, Apple, Carrot, Fish, Egg, Bread, Milk, Snowflake, Flame, Zap, Wind, Battery, Plug, Lightbulb, Settings, Tool, Wrench, Hammer, Trash, Recycle, Tree, Flower, Sprout, Seedling, Garden, Dog, Cat, Bird, Bug, Dragon, Dinosaur, Rocket, Space, Planet, Star, Moon, Rainbow, Umbrella, Compass, Map, Flag, Shield, Key, Eye, Ear, Mouth, Brain, Bone, Hand, Foot, Arm, Leg, HeartPulse, Stethoscope, Pill, Hospital, Ambulance, Fire, Police } from 'lucide-react';
+import { MapPin, TrendingUp, BarChart3, PieChart, ArrowRight, Check, X, Trophy, Medal, Award, Filter, Lock, Timer, Volume2, Landmark, Banknote, Factory, Building, Wheat, Globe, Heart, Scale, GraduationCap, ShoppingBag, Truck, Coins, Target, Users, Leaf, Sun, Cloud, Droplets, Mountain, Waves, Gem, Pickaxe, Ship, Plane, Train, Car, Bike, Bus, Home, Utensils, Wifi, Phone, Laptop, Smartphone, Tv, Watch, Camera, Video, Music, Book, Pen, Scissors, Shirt, Shoe, Ring, Gift, Cake, Coffee, Beer, Wine, Pizza, Burger, Apple, Carrot, Fish, Egg, Bread, Milk, Snowflake, Flame, Zap, Wind, Battery, Plug, Lightbulb, Settings, Tool, Wrench, Hammer, Trash, Recycle, Tree, Flower, Sprout, Seedling, Garden, Dog, Cat, Bird, Bug, Dragon, Dinosaur, Rocket, Space, Planet, Star, Moon, Rainbow, Umbrella, Compass, Map, Flag, Shield, Key, Eye, Ear, Mouth, Brain, Bone, Hand, Foot, Arm, Leg, HeartPulse, Stethoscope, Pill, Hospital, Ambulance, Fire, Police, PlusCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
@@ -6,10 +7,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import AuthPrompt from '../components/AuthPrompt';
 import { apiRequest } from '../services/api';
+import { shuffle } from '../utils/shuffle';
+import { Link } from 'react-router';
 
 export default function Resources() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isAdmin } = useAuth();
   const [activeQuiz, setActiveQuiz] = useState(null);
+  // Perguntas do quiz local já baralhadas (ordem + opções) para a sessão actual
+  const [localQuestions, setLocalQuestions] = useState<any[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -947,6 +952,19 @@ export default function Resources() {
       setShowAuthPrompt(true);
       return;
     }
+    // Baralha a ordem das perguntas e das opções (remapeando o índice correcto)
+    // para o utilizador não decorar posições nem respostas de antemão.
+    const baralhadas = shuffle(quizzes[quizType].questions).map((q: any) => {
+      const opcoes = shuffle(
+        q.options.map((text: string, i: number) => ({ text, correct: i === q.correct })),
+      );
+      return {
+        question: q.question,
+        options: opcoes.map((o) => o.text),
+        correct: opcoes.findIndex((o) => o.correct),
+      };
+    });
+    setLocalQuestions(baralhadas);
     setActiveQuiz(quizType);
     setCurrentQuestion(0);
     setScore(0);
@@ -965,10 +983,22 @@ export default function Resources() {
     try {
       const data = await apiRequest<any>(`/quizzes/${quizId}`);
       if (!data.perguntas || data.perguntas.length === 0) {
-        alert('Este quiz ainda não tem perguntas. Aguarda que o administrador as adicione.');
+        toast.error('Este quiz ainda não tem perguntas. Aguarda que o administrador as adicione.');
         return;
       }
-      setApiQuizData(data);
+      // Baralha a ordem das perguntas e das opções. Cada opção guarda o seu
+      // valor original (1=A,2=B,3=C,4=D) para a submissão à API continuar correcta,
+      // independentemente da posição em que é apresentada.
+      const perguntasBaralhadas = shuffle(data.perguntas).map((p: any) => ({
+        ...p,
+        opcoesBaralhadas: shuffle([
+          { texto: p.opcao_a, valor: 1 },
+          { texto: p.opcao_b, valor: 2 },
+          { texto: p.opcao_c, valor: 3 },
+          { texto: p.opcao_d, valor: 4 },
+        ]),
+      }));
+      setApiQuizData({ ...data, perguntas: perguntasBaralhadas });
       setActiveApiQuizId(quizId);
       setApiAnswers([]);
       setCurrentQuestion(0);
@@ -977,21 +1007,23 @@ export default function Resources() {
       setShowResult(false);
       setTimeRemaining(30);
     } catch {
-      alert('Não foi possível carregar o quiz. Tenta novamente.');
+      toast.error('Não foi possível carregar o quiz. Tenta novamente.');
     }
   };
 
-  // Responde pergunta num quiz da API
-  const handleApiAnswer = (opcaoIndex: number) => {
+  // Responde pergunta num quiz da API.
+  // displayIndex = posição apresentada (para destacar a opção); -1 = tempo esgotado.
+  // valorOriginal = valor real da opção (1..4) usado na submissão à API.
+  const handleApiAnswer = (displayIndex: number, valorOriginal?: number) => {
     if (selectedAnswer !== null || !apiQuizData) return;
     if (timerRef.current) clearInterval(timerRef.current);
-    setSelectedAnswer(opcaoIndex);
+    setSelectedAnswer(displayIndex);
 
     const pergunta = apiQuizData.perguntas[currentQuestion];
-    // opcaoIndex é 0-based (posição no array); resposta_correta é 1-based (1=A,2=B,3=C,4=D)
-    const respostaEscolhida1Based = opcaoIndex === -1 ? 0 : opcaoIndex + 1;
-    const correta = opcaoIndex !== -1 && respostaEscolhida1Based === pergunta.resposta_correta;
-    if (opcaoIndex === -1) { playSound('incorrect'); }
+    // resposta_correta é 1-based (1=A,2=B,3=C,4=D) e só vem para staff
+    const respostaEscolhida1Based = displayIndex === -1 ? 0 : (valorOriginal ?? 0);
+    const correta = displayIndex !== -1 && respostaEscolhida1Based === pergunta.resposta_correta;
+    if (displayIndex === -1) { playSound('incorrect'); }
     else if (correta) { playSound('correct'); setScore(s => s + 10); }
     else { playSound('incorrect'); }
 
@@ -1017,7 +1049,7 @@ export default function Resources() {
           updateRanking();
         } catch (err: any) {
           if (err?.status === 429) {
-            alert('Já realizaste este quiz hoje. Tenta amanhã!');
+            toast.info('Já realizaste este quiz hoje. Tenta amanhã!');
           }
         }
         setTotalQuizzes(q => q + 1);
@@ -1034,8 +1066,7 @@ export default function Resources() {
 
     setSelectedAnswer(answerIndex);
 
-    const currentQuiz = quizzes[activeQuiz];
-    const isCorrect = answerIndex === currentQuiz.questions[currentQuestion].correct;
+    const isCorrect = answerIndex === localQuestions[currentQuestion]?.correct;
 
     if (answerIndex === -1) {
       playSound('incorrect');
@@ -1047,13 +1078,13 @@ export default function Resources() {
     }
 
     setTimeout(() => {
-      if (currentQuestion + 1 < currentQuiz.questions.length) {
+      if (currentQuestion + 1 < localQuestions.length) {
         setCurrentQuestion(currentQuestion + 1);
         setSelectedAnswer(null);
         setTimeRemaining(30);
       } else {
         setShowResult(true);
-        setAnsweredQuestions(answeredQuestions + currentQuiz.questions.length);
+        setAnsweredQuestions(answeredQuestions + localQuestions.length);
         setTotalQuizzes(totalQuizzes + 1);
         const finalScore = isCorrect ? score + 10 : score;
         setTotalScore(totalScore + finalScore);
@@ -1084,7 +1115,13 @@ export default function Resources() {
     const timePercentage = (timeRemaining / 30) * 100;
     const isTimeWarning  = timeRemaining <= 10;
     const isTimeCritical = timeRemaining <= 5;
-    const opcoes = [pergunta.opcao_a, pergunta.opcao_b, pergunta.opcao_c, pergunta.opcao_d];
+    // Opções já baralhadas (cada uma com o seu valor original 1..4)
+    const opcoes = pergunta.opcoesBaralhadas ?? [
+      { texto: pergunta.opcao_a, valor: 1 },
+      { texto: pergunta.opcao_b, valor: 2 },
+      { texto: pergunta.opcao_c, valor: 3 },
+      { texto: pergunta.opcao_d, valor: 4 },
+    ];
 
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -1173,15 +1210,15 @@ export default function Resources() {
             <CardContent className="space-y-3">
               {opcoes.map((opcao, index) => {
                 const isSelected   = selectedAnswer === index;
-                // resposta_correta é 1-based; index é 0-based → converter
-                const isCorreta    = (index + 1) === pergunta.resposta_correta;
+                // Compara pelo valor original da opção (resposta_correta é 1-based e só vem para staff)
+                const isCorreta    = opcao.valor === pergunta.resposta_correta;
                 const showCorrect  = selectedAnswer !== null && isCorreta;
                 const showWrong    = selectedAnswer !== null && isSelected && !isCorreta;
 
                 return (
                   <button
                     key={index}
-                    onClick={() => handleApiAnswer(index)}
+                    onClick={() => handleApiAnswer(index, opcao.valor)}
                     disabled={selectedAnswer !== null}
                     className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                       showCorrect ? 'border-green-500 bg-green-50' :
@@ -1195,7 +1232,7 @@ export default function Resources() {
                         <span className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600 flex-shrink-0">
                           {['A','B','C','D'][index]}
                         </span>
-                        <span>{opcao}</span>
+                        <span>{opcao.texto}</span>
                       </div>
                       {showCorrect && <Check className="w-5 h-5 text-green-600 flex-shrink-0" />}
                       {showWrong   && <X     className="w-5 h-5 text-red-600 flex-shrink-0" />}
@@ -1293,7 +1330,8 @@ export default function Resources() {
 
   if (activeQuiz && !showResult) {
     const currentQuiz = quizzes[activeQuiz];
-    const question = currentQuiz.questions[currentQuestion];
+    const question = localQuestions[currentQuestion];
+    const totalLocais = localQuestions.length;
     const colorMap = {
       blue: { bg: 'bg-blue-600', hover: 'hover:bg-blue-700', light: 'bg-blue-50', text: 'text-blue-600' },
       red: { bg: 'bg-red-600', hover: 'hover:bg-red-700', light: 'bg-red-50', text: 'text-red-600' },
@@ -1335,7 +1373,7 @@ export default function Resources() {
             <div className="grid grid-cols-3 gap-4 text-sm mb-4">
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
                 <div className="text-xs opacity-75 mb-1">Pergunta</div>
-                <div className="font-bold">{currentQuestion + 1} / {currentQuiz.questions.length}</div>
+                <div className="font-bold">{currentQuestion + 1} / {totalLocais}</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
                 <div className="text-xs opacity-75 mb-1">Pontuação</div>
@@ -1361,7 +1399,7 @@ export default function Resources() {
               <div className="bg-white/20 rounded-full h-2">
                 <div
                   className="bg-white h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${((currentQuestion + 1) / currentQuiz.questions.length) * 100}%` }}
+                  style={{ width: `${((currentQuestion + 1) / totalLocais) * 100}%` }}
                 />
               </div>
             </div>
@@ -1520,9 +1558,19 @@ export default function Resources() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <section className="text-white" style={{ background: '#C1121F' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16" style={{ background: '#C1121F' }}>
-          <div className="flex items-center space-x-3 mb-4" style={{ background: '#C1121F' }}>
-            <GraduationCap className="w-8 h-8" />
-            <h1 className="text-4xl font-bold">Teste o seu conhecimento</h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4" style={{ background: '#C1121F' }}>
+            <div className="flex items-center space-x-3">
+              <GraduationCap className="w-8 h-8" />
+              <h1 className="text-4xl font-bold">Teste o seu conhecimento</h1>
+            </div>
+            {(isAdmin || user?.pode_criar_quiz) && (
+              <Link
+                to="/admin/quizzes"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white text-red-700 font-semibold text-sm hover:bg-red-50 transition-colors shrink-0"
+              >
+                <PlusCircle className="w-4 h-4" /> Criar Quiz
+              </Link>
+            )}
           </div>
           <p className="text-xl text-red-100 max-w-3xl">
             Responda a perguntas sobre economia e história de Angola. Ganhe pontos, compare resultados e aprenda jogando.

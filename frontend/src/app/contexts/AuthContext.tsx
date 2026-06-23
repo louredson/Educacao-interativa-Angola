@@ -16,7 +16,7 @@ export interface User {
   province?:   string | null
   institution?: string | null
   course?:     string | null
-  role:        'visitante' | 'subscrito' | 'admin'
+  role:        'visitante' | 'subscrito' | 'admin' | 'superadmin'
   avatarUrl?:  string | null
   isActive?:   boolean
   createdAt:   string
@@ -49,20 +49,24 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const USER_KEY = 'currentUser'
 
 function normalizeUser(raw: Record<string, unknown>): User {
+  // A API devolve as chaves em português (nome, tipo, provincia…); aceitamos
+  // também as variantes em inglês para compatibilidade.
+  const rawRole = String(raw['role'] ?? raw['tipo'] ?? 'subscrito')
+  const ehAdmin = rawRole === 'admin' || rawRole === 'superadmin' || Boolean(raw['isAdmin'])
   return {
     id:          Number(raw['id']),
-    name:        String(raw['name'] ?? ''),
+    name:        String(raw['name'] ?? raw['nome'] ?? ''),
     email:       String(raw['email'] ?? ''),
-    phone:       (raw['phone']       as string | null) ?? null,
-    province:    (raw['province']    as string | null) ?? null,
-    institution: (raw['institution'] as string | null) ?? null,
-    course:      (raw['course']      as string | null) ?? null,
-    role:        (raw['role'] as User['role']) ?? 'subscrito',
-    avatarUrl:   (raw['avatarUrl']   as string | null) ?? null,
-    isActive:    Boolean(raw['isActive'] ?? true),
-    createdAt:   String(raw['createdAt'] ?? new Date().toISOString()),
-    lastAccess:  (raw['lastAccess']  as string | null) ?? null,
-    isAdmin:     Boolean(raw['isAdmin'] ?? raw['role'] === 'admin'),
+    phone:       (raw['phone'] ?? raw['telemovel'] ?? null) as string | null,
+    province:    (raw['province'] ?? raw['provincia'] ?? null) as string | null,
+    institution: (raw['institution'] ?? raw['instituicao'] ?? null) as string | null,
+    course:      (raw['course'] ?? raw['curso'] ?? null) as string | null,
+    role:        rawRole as User['role'],
+    avatarUrl:   (raw['avatarUrl'] ?? raw['avatar_url'] ?? null) as string | null,
+    isActive:    Boolean(raw['isActive'] ?? raw['ativo'] ?? true),
+    createdAt:   String(raw['createdAt'] ?? raw['criado_em'] ?? new Date().toISOString()),
+    lastAccess:  (raw['lastAccess'] ?? raw['ultimo_acesso'] ?? null) as string | null,
+    isAdmin:     ehAdmin,
   }
 }
 
@@ -164,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         refreshUser,
         isAuthenticated: !!user && !!token,
-        isAdmin:         user?.role === 'admin',
+        isAdmin:         !!user?.isAdmin,
       }}
     >
       {children}

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import {
   listRespostas, createResposta, deleteResposta,
-  likeResposta, denunciarResposta,
+  likeResposta, denunciarResposta, votarResposta,
 } from '../controllers/forum.controller.js'
 import {
   listComentarios, createComentario, deleteComentario, likeComentario,
@@ -16,6 +16,7 @@ forumRouter.get   ('/topicos/:id/respostas',     authenticate, requireAuth, list
 forumRouter.post  ('/topicos/:id/respostas',     authenticate, requireAuth, createResposta)
 forumRouter.delete('/respostas/:id',             authenticate, requireAuth, deleteResposta)
 forumRouter.post  ('/respostas/:id/like',        authenticate, requireAuth, likeResposta)
+forumRouter.post  ('/respostas/:id/votar',       authenticate, requireAuth, votarResposta)
 forumRouter.post  ('/respostas/:id/denunciar',   authenticate, requireAuth, denunciarResposta)
 
 // Comentários de conteúdos
