@@ -1,0 +1,92 @@
+## ─────────────────────────────────────────────────────────────────────────
+## .gitignore — Educação Interativa Angola (backend + frontend + mobile)
+## ─────────────────────────────────────────────────────────────────────────
+## Objectivo principal: nunca deixar chaves/segredos (SMTP, JWT, chaves de
+## API de IA, credenciais de base de dados) nem pastas de dependências
+## pesadas ir parar ao repositório.
+
+# ── Variáveis de ambiente (segredos) ────────────────────────────────────────
+# Cobre backend/.env, frontend/.env, mobile/.env e qualquer variante
+# (.env.local, .env.development, .env.desenvolvimento, .env.final, etc.),
+# em qualquer pasta do projecto — mas mantém os ficheiros ".env.example"
+# (sem segredos reais, servem de modelo e devem ficar no repositório).
+# NOTA: a versão anterior deste ficheiro ignorava por engano o .env.example
+# — corrigido aqui, o padrão "!" abaixo garante que ele continua no git.
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# ── Dependências (node_modules) ─────────────────────────────────────────────
+# "**/" apanha o node_modules do backend, do frontend, do mobile e de
+# qualquer subpasta futura, sem ter de listar cada uma à mão.
+node_modules/
+**/node_modules/
+
+# ── Builds e ficheiros gerados ───────────────────────────────────────────────
+dist/
+build/
+**/dist/
+**/build/
+backend/dist/
+frontend/dist/
+frontend/.angular/
+mobile/www/
+*.tsbuildinfo
+
+# ── Logs ────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+backend/logs/
+
+# ── Uploads de utilizadores (conteúdo gerado, não deve ir para o git) ───────
+backend/uploads/
+
+# ── Mobile / Expo / React Native ─────────────────────────────────────────────
+mobile/.expo/
+mobile/.expo-shared/
+mobile/dist/
+mobile/web-build/
+mobile/*.jks
+mobile/*.p8
+mobile/*.p12
+mobile/*.key
+mobile/*.mobileprovision
+mobile/ios/Pods/
+mobile/ios/build/
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+*.jsbundle
+
+# ── Base de dados local / dumps sensíveis ────────────────────────────────────
+*.sqlite
+*.sqlite3
+database/*.local.sql
+
+# ── Sistema operativo ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ── Testes e cobertura ───────────────────────────────────────────────────────
+coverage/
+**/coverage/
+
+# ── Cache de ferramentas ─────────────────────────────────────────────────────
+.vite/
+.turbo/
+.eslintcache

@@ -1,0 +1,22 @@
+# ── Build ─────────────────────────────────────────────────────────────────────
+dist/
+
+# ── Dependências ──────────────────────────────────────────────────────────────
+node_modules/
+
+# ── Logs de email (gerados em dev) ───────────────────────────────────────────
+logs/
+
+# ── Uploads de utilizadores (conteúdo gerado, não deve ir para o git) ───────
+uploads/
+
+# ── Ambiente (segredos) ───────────────────────────────────────────────────────
+# NOTA: a versão anterior deste ficheiro ignorava por engano o .env.example
+# (o modelo sem segredos reais, que devia ficar no repositório) — corrigido.
+.env
+.env.*
+!.env.example
+
+# ── Sistema operativo ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
