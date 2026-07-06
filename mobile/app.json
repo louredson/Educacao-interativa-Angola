@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Economia com Historia",
+    "slug": "economia-com-historia",
+    "scheme": "economiacomhistoria",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"]
+  }
+}
